@@ -135,12 +135,11 @@ export function PinLock({ onUnlock }: PinLockProps) {
       display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
       gap: '1.5rem', padding: '2rem',
     }}>
-      <img src="/logo-icon.svg" alt="Rotary" style={{ width: 64, height: 64 }} />
       <div style={{
-        fontFamily: "'Jost', sans-serif", fontWeight: 300, fontSize: '1.6rem',
-        color: 'var(--accent)', letterSpacing: '0.15em',
+        fontFamily: "'Jost', sans-serif", fontWeight: 200, fontSize: '2.8rem',
+        color: 'var(--accent)', letterSpacing: '0.1em', textTransform: 'lowercase',
       }}>
-        Connect
+        Rotary Connect
       </div>
       <div style={{ fontSize: '0.85rem', color: 'var(--muted)' }}>
         Enter your PIN to unlock
@@ -267,12 +266,11 @@ export function PinSetup({ onComplete, isMigration }: PinSetupProps) {
       display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
       gap: '1.5rem', padding: '2rem',
     }}>
-      <img src="/logo-icon.svg" alt="Rotary" style={{ width: 64, height: 64 }} />
       <div style={{
-        fontFamily: "'Jost', sans-serif", fontWeight: 300, fontSize: '1.6rem',
-        color: 'var(--accent)', letterSpacing: '0.15em',
+        fontFamily: "'Jost', sans-serif", fontWeight: 200, fontSize: '2.8rem',
+        color: 'var(--accent)', letterSpacing: '0.1em', textTransform: 'lowercase',
       }}>
-        Connect
+        Rotary Connect
       </div>
 
       {isMigration ? (

@@ -100,8 +100,8 @@ export function SetupScreen({ onIdentityCreated }: SetupScreenProps = {}) {
     <div id="screen-setup" className="screen active">
       <div className="setup-inner">
         <div className="logo-block">
-          <img src="/logo-icon.svg" alt="Rotary" className="setup-logo-img" />
-          <div className="logo-name">Connect</div>
+          <img src="/logo-icon.svg" alt="Rotary Connect" className="setup-logo-img" />
+          <div className="logo-name">Rotary Connect</div>
           <div className="logo-tagline">{t('setup.tagline')}</div>
           <div style={{ marginTop: '0.8rem' }}>
             <LanguageToggle />

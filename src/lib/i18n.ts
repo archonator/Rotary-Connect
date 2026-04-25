@@ -247,7 +247,7 @@ export const translations = {
     'landing.philCaption': 'Why Rotary Connect exists',
     'landing.philBody': 'Rotary Connect was built so Rotarians worldwide can communicate freely — regardless of borders, regimes, or corporate interests. No server that can be switched off. No owner that can be bought. Just Rotarians connecting with Rotarians.',
     // Landing - Footer
-    'landing.footerText': 'Rotary Connect · v1.0 · © 2026 Kay Mühlenbruch',
+    'landing.footerText': 'Rotary Connect · v1.0 · © 2026 Leon Muehlenbruch',
     'landing.footerLicense': 'Open Source · Built for the Rotary community',
   },
 
@@ -497,7 +497,7 @@ export const translations = {
     'landing.philCaption': 'Warum Rotary Connect existiert',
     'landing.philBody': 'Rotary Connect wurde gebaut, damit Rotarier weltweit frei kommunizieren können — unabhängig von Grenzen, Regimen oder Unternehmensinteressen. Kein Server, der abgeschaltet werden kann. Kein Besitzer, der gekauft werden kann. Einfach Rotarier, die mit Rotariern sprechen.',
     // Landing - Footer
-    'landing.footerText': 'Rotary Connect · v1.0 · © 2026 Kay Mühlenbruch',
+    'landing.footerText': 'Rotary Connect · v1.0 · © 2026 Leon Muehlenbruch',
     'landing.footerLicense': 'Open Source · Für die Rotary-Gemeinschaft',
   },
 } as const
