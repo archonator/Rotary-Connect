@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Chris Rechner">
+<meta name="theme-color" content="#667eea">
+<title>Chris Währungsrechner</title>
+<style>
+  :root {
+    --safe-top: env(safe-area-inset-top);
+    --safe-bottom: env(safe-area-inset-bottom);
+    --safe-left: env(safe-area-inset-left);
+    --safe-right: env(safe-area-inset-right);
+  }
+  * {
+    box-sizing: border-box;
+    -webkit-tap-highlight-color: transparent;
+  }
+  html, body {
+    -webkit-text-size-adjust: 100%;
+    -webkit-font-smoothing: antialiased;
+    overscroll-behavior-y: contain;
+  }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background-attachment: fixed;
+    min-height: 100vh;
+    min-height: 100dvh;
+    margin: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: calc(16px + var(--safe-top)) calc(16px + var(--safe-right)) calc(16px + var(--safe-bottom)) calc(16px + var(--safe-left));
+    color: #333;
+  }
+  .card {
+    background: #fff;
+    border-radius: 20px;
+    padding: 24px 20px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+    width: 100%;
+    max-width: 480px;
+  }
+  h1 {
+    margin: 0 0 4px;
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: -0.3px;
+  }
+  .subtitle {
+    color: #777;
+    font-size: 13px;
+    margin-bottom: 16px;
+  }
+  .status {
+    display: inline-block;
+    font-size: 11px;
+    padding: 5px 10px;
+    border-radius: 12px;
+    margin-bottom: 16px;
+    font-weight: 600;
+  }
+  .status.loading { background: #fff3cd; color: #856404; }
+  .status.live    { background: #d4edda; color: #155724; }
+  .status.error   { background: #f8d7da; color: #721c24; }
+
+  .field {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 12px;
+  }
+  input, select, button {
+    font-family: inherit;
+    font-size: 17px; /* >=16px prevents iOS auto-zoom */
+    border-radius: 12px;
+    min-height: 52px;
+    outline: none;
+    -webkit-appearance: none;
+    appearance: none;
+  }
+  input {
+    flex: 1.6;
+    min-width: 0;
+    padding: 14px 16px;
+    border: 2px solid #e5e7eb;
+    background: #fff;
+    font-weight: 600;
+    color: #222;
+    font-variant-numeric: tabular-nums;
+  }
+  input:focus { border-color: #667eea; }
+  input[readonly] { background: #f7f7fb; color: #555; }
+
+  select {
+    flex: 1;
+    min-width: 0;
+    padding: 14px 38px 14px 14px;
+    border: 2px solid #e5e7eb;
+    background: #fff url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'><path fill='%23667eea' d='M6 8L0 0h12z'/></svg>") no-repeat right 14px center;
+    background-size: 10px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  select:focus { border-color: #667eea; }
+
+  .swap-btn {
+    background: #667eea;
+    color: #fff;
+    border: none;
+    width: 48px;
+    height: 48px;
+    min-height: 48px;
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 20px;
+    margin: 6px auto 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 12px rgba(102,126,234,0.4);
+    transition: transform 0.25s ease;
+  }
+  .swap-btn:active { transform: rotate(180deg) scale(0.92); }
+
+  .result {
+    background: linear-gradient(135deg, #f5f7ff, #eef1ff);
+    padding: 18px 16px;
+    border-radius: 14px;
+    text-align: center;
+    margin-top: 14px;
+  }
+  .result-rate {
+    font-size: 13px;
+    color: #6b7280;
+    font-variant-numeric: tabular-nums;
+  }
+  .result-amount {
+    font-size: 30px;
+    font-weight: 800;
+    color: #1f2937;
+    margin: 6px 0 0;
+    letter-spacing: -0.5px;
+    font-variant-numeric: tabular-nums;
+    word-break: break-all;
+  }
+
+  .refresh {
+    background: #764ba2;
+    color: #fff;
+    border: none;
+    padding: 14px;
+    width: 100%;
+    margin-top: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    box-shadow: 0 4px 12px rgba(118,75,162,0.3);
+  }
+  .refresh:active { background: #5a3880; transform: scale(0.98); }
+
+  .note {
+    font-size: 11px;
+    color: #9ca3af;
+    text-align: center;
+    margin-top: 12px;
+    line-height: 1.4;
+  }
+
+  @media (max-width: 380px) {
+    h1 { font-size: 20px; }
+    .result-amount { font-size: 26px; }
+    .card { padding: 20px 16px; }
+  }
+</style>
+</head>
+<body>
+<div class="card">
+  <h1>💱 Chris Währungsrechner</h1>
+  <div class="subtitle">Tagesaktuelle Kurse von Google Finance</div>
+  <div id="status" class="status loading">⏳ Lade Kurse…</div>
+
+  <div class="field">
+    <input type="number" id="amountFrom" value="100" step="0.01" inputmode="decimal" enterkeyhint="done" autocomplete="off">
+    <select id="from"></select>
+  </div>
+
+  <button class="swap-btn" onclick="swap()" aria-label="Währungen tauschen">⇅</button>
+
+  <div class="field">
+    <input type="number" id="amountTo" readonly tabindex="-1">
+    <select id="to"></select>
+  </div>
+
+  <div class="result">
+    <div class="result-rate" id="rateText">–</div>
+    <div class="result-amount" id="resultBig">–</div>
+  </div>
+
+  <button class="refresh" onclick="loadRates()">🔄 Kurse aktualisieren</button>
+  <div class="note" id="updatedAt">Quelle: Google Finance</div>
+</div>
+
+<script>
+const currencies = {
+  USD: { name: "US-Dollar",            symbol: "$"   },
+  EUR: { name: "Euro",                 symbol: "€"   },
+  GBP: { name: "Britisches Pfund",     symbol: "£"   },
+  JPY: { name: "Japanischer Yen",      symbol: "¥"   },
+  CHF: { name: "Schweizer Franken",    symbol: "CHF" },
+  CNY: { name: "Chinesischer Yuan",    symbol: "¥"   },
+  CAD: { name: "Kanadischer Dollar",   symbol: "C$"  },
+  AUD: { name: "Australischer Dollar", symbol: "A$"  },
+  INR: { name: "Indische Rupie",       symbol: "₹"   },
+  SEK: { name: "Schwedische Krone",    symbol: "kr"  }
+};
+
+let ratesToUSD = {
+  USD: 1, EUR: 1.087, GBP: 1.266, JPY: 0.0066, CHF: 1.136,
+  CNY: 0.138, CAD: 0.730, AUD: 0.658, INR: 0.012, SEK: 0.094
+};
+
+const fromSel = document.getElementById("from");
+const toSel   = document.getElementById("to");
+const amtFrom = document.getElementById("amountFrom");
+const amtTo   = document.getElementById("amountTo");
+const rateTxt = document.getElementById("rateText");
+const resBig  = document.getElementById("resultBig");
+const statusEl= document.getElementById("status");
+const updEl   = document.getElementById("updatedAt");
+
+Object.keys(currencies).forEach(code => {
+  fromSel.add(new Option(`${code} — ${currencies[code].name}`, code));
+  toSel.add(new Option(`${code} — ${currencies[code].name}`, code));
+});
+fromSel.value = "EUR";
+toSel.value   = "USD";
+
+async function fetchGoogleRate(from, to) {
+  const gUrl = `https://www.google.com/finance/quote/${from}-${to}`;
+  const proxy = `https://corsproxy.io/?${encodeURIComponent(gUrl)}`;
+  const res = await fetch(proxy);
+  if (!res.ok) throw new Error("HTTP " + res.status);
+  const html = await res.text();
+  const m = html.match(/class="YMlKec fxKbKc"[^>]*>([^<]+)<\/div>/);
+  if (!m) throw new Error("Preis nicht gefunden");
+  const num = parseFloat(m[1].replace(/[^\d.,-]/g, "").replace(",", "."));
+  if (!num || isNaN(num)) throw new Error("Kurs nicht parsebar: " + m[1]);
+  return num;
+}
+
+async function loadRates() {
+  statusEl.className = "status loading";
+  statusEl.textContent = "⏳ Lade Kurse von Google Finance…";
+  const codes = Object.keys(currencies).filter(c => c !== "USD");
+  try {
+    const results = await Promise.all(codes.map(async c => [c, await fetchGoogleRate(c, "USD")]));
+    results.forEach(([c, p]) => { ratesToUSD[c] = p; });
+    ratesToUSD.USD = 1;
+    statusEl.className = "status live";
+    statusEl.textContent = "● Live-Kurse (Google Finance)";
+    updEl.textContent = `Stand: ${new Date().toLocaleString("de-DE")} · Quelle: Google Finance`;
+  } catch (err) {
+    statusEl.className = "status error";
+    statusEl.textContent = "⚠ Offline – nutze Richtwerte";
+    console.error(err);
+  }
+  convert();
+}
+
+function convert() {
+  const amt = parseFloat(amtFrom.value) || 0;
+  const from = fromSel.value, to = toSel.value;
+  const usd = amt * ratesToUSD[from];
+  const result = usd / ratesToUSD[to];
+  amtTo.value = result.toFixed(4);
+  const single = ratesToUSD[from] / ratesToUSD[to];
+  rateTxt.textContent = `1 ${from} = ${single.toFixed(4)} ${to}`;
+  resBig.textContent  = `${currencies[to].symbol} ${result.toLocaleString("de-DE",{minimumFractionDigits:2,maximumFractionDigits:2})}`;
+}
+
+function swap() {
+  const t = fromSel.value;
+  fromSel.value = toSel.value;
+  toSel.value = t;
+  convert();
+}
+
+[amtFrom, fromSel, toSel].forEach(el => el.addEventListener("input", convert));
+loadRates();
+</script>
+</body>
+</html>

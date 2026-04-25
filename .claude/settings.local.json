@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//Users/kay/Alina Chat/**)",
+      "Bash(mv alina-latest:*)",
+      "Bash(rm -rf alina-react \"alina-latest_27_03_23uhr43.zip\")"
+    ]
+  }
+}

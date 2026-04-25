@@ -1,0 +1,16 @@
+{
+  "projectId": "prj_TdXvlh60HqBGWMNvJlPKr0kOKCs4",
+  "orgId": "team_HEWTd90pMdu7mFjePBY4X6de",
+  "projectName": "alina-chat",
+  "settings": {
+    "createdAt": 1774630850824,
+    "framework": null,
+    "devCommand": null,
+    "installCommand": null,
+    "buildCommand": null,
+    "outputDirectory": null,
+    "rootDirectory": null,
+    "directoryListing": false,
+    "nodeVersion": "24.x"
+  }
+}

@@ -1,0 +1,7 @@
+<svg viewBox="0 0 600 130" xmlns="http://www.w3.org/2000/svg">
+  <!-- Rotary Connect wordmark -->
+  <text x="300" y="75" font-family="Jost, sans-serif" font-weight="300"
+        font-size="52" fill="#003366" letter-spacing="4" text-anchor="middle">Rotary</text>
+  <text x="300" y="118" font-family="Jost, sans-serif" font-weight="200"
+        font-size="36" fill="#F7A81B" letter-spacing="6" text-anchor="middle">Connect</text>
+</svg>

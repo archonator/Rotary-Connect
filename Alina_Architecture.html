@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Alina – Architecture Overview</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #0e0e0f; color: #c8bfaa; font-family: 'Jost', 'Segoe UI', sans-serif; min-height: 100vh; padding: 2rem; }
+
+  h1 { font-family: 'Playfair Display', serif; color: #B38463; font-size: 2rem; font-weight: 400; text-align: center; margin-bottom: 0.3rem; letter-spacing: 0.04em; }
+  .subtitle { text-align: center; color: #7a7672; font-size: 0.85rem; letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 2.5rem; }
+
+  .diagram { max-width: 1100px; margin: 0 auto; }
+
+  /* Section containers */
+  .section { margin-bottom: 2rem; border: 1px solid #2a2a2e; border-radius: 12px; overflow: hidden; }
+  .section-header { background: #18181b; padding: 0.8rem 1.2rem; display: flex; align-items: center; gap: 0.6rem; border-bottom: 1px solid #2a2a2e; }
+  .section-header .icon { font-size: 1.2rem; }
+  .section-header .label { font-size: 0.85rem; font-weight: 600; color: #B38463; letter-spacing: 0.06em; text-transform: uppercase; }
+  .section-body { padding: 1.2rem; display: flex; flex-wrap: wrap; gap: 0.8rem; }
+
+  /* Boxes inside sections */
+  .box { background: #1a1a1d; border: 1px solid #2e2e33; border-radius: 8px; padding: 0.7rem 0.9rem; min-width: 140px; flex: 1; }
+  .box.accent { border-color: #B38463; background: rgba(179,132,99,0.06); }
+  .box.warn { border-color: #c97070; background: rgba(201,112,112,0.06); }
+  .box.green { border-color: #6a9955; background: rgba(106,153,85,0.06); }
+  .box .title { font-size: 0.78rem; font-weight: 600; color: #e0d6c8; margin-bottom: 0.3rem; }
+  .box .desc { font-size: 0.7rem; color: #7a7672; line-height: 1.5; }
+  .box .tag { display: inline-block; font-size: 0.6rem; padding: 0.15rem 0.4rem; border-radius: 4px; background: #222226; color: #B38463; margin-top: 0.3rem; margin-right: 0.3rem; }
+  .box .tag.green { background: rgba(106,153,85,0.15); color: #6a9955; border: none; }
+  .box .tag.red { background: rgba(201,112,112,0.15); color: #c97070; border: none; }
+
+  /* Flow arrows */
+  .flow { display: flex; align-items: stretch; gap: 0; margin: 1.5rem 0; }
+  .flow-step { flex: 1; display: flex; flex-direction: column; align-items: center; position: relative; }
+  .flow-step .num { width: 28px; height: 28px; border-radius: 50%; background: #B38463; color: #0e0e0f; display: flex; align-items: center; justify-content: center; font-size: 0.75rem; font-weight: 700; margin-bottom: 0.5rem; flex-shrink: 0; }
+  .flow-step .flow-label { font-size: 0.72rem; color: #e0d6c8; font-weight: 500; text-align: center; margin-bottom: 0.2rem; }
+  .flow-step .flow-desc { font-size: 0.65rem; color: #7a7672; text-align: center; line-height: 1.4; }
+  .flow-step:not(:last-child)::after { content: ''; position: absolute; top: 13px; left: calc(50% + 20px); right: calc(-50% + 20px); height: 2px; background: #B38463; opacity: 0.4; }
+
+  /* Relay grid */
+  .relay-grid { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+  .relay { font-size: 0.68rem; padding: 0.3rem 0.6rem; background: #1a1a1d; border: 1px solid #2e2e33; border-radius: 6px; color: #7a7672; font-family: monospace; }
+  .relay::before { content: '●'; color: #6a9955; margin-right: 0.4rem; }
+
+  /* Legend */
+  .legend { display: flex; flex-wrap: wrap; gap: 1.2rem; justify-content: center; margin-top: 2rem; padding-top: 1.5rem; border-top: 1px solid #2a2a2e; }
+  .legend-item { display: flex; align-items: center; gap: 0.4rem; font-size: 0.7rem; color: #7a7672; }
+  .legend-dot { width: 10px; height: 10px; border-radius: 3px; }
+  .legend-dot.enc { background: #6a9955; }
+  .legend-dot.plain { background: #c97070; }
+  .legend-dot.local { background: #B38463; }
+  .legend-dot.ext { background: #5a7ec9; }
+
+  /* Two col layout */
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 0.8rem; }
+  @media (max-width: 700px) { .two-col { grid-template-columns: 1fr; } .flow { flex-direction: column; } .flow-step:not(:last-child)::after { display: none; } }
+
+  .divider { text-align: center; color: #3a3a3e; margin: 1rem 0; font-size: 0.7rem; letter-spacing: 0.2em; text-transform: uppercase; }
+</style>
+</head>
+<body>
+
+<h1>Alina</h1>
+<p class="subtitle">Architecture overview — Nostr + local logic</p>
+
+<div class="diagram">
+
+  <!-- ════════════ UI LAYER ════════════ -->
+  <div class="section">
+    <div class="section-header">
+      <span class="icon">🖥</span>
+      <span class="label">UI Layer — React 19 Components</span>
+    </div>
+    <div class="section-body">
+      <div class="box">
+        <div class="title">SetupScreen</div>
+        <div class="desc">Create or import identity (nsec). Key pair is generated locally.</div>
+      </div>
+      <div class="box">
+        <div class="title">Sidebar</div>
+        <div class="desc">Chat list, contacts, groups, relay status indicator.</div>
+      </div>
+      <div class="box">
+        <div class="title">ChatArea</div>
+        <div class="desc">MessageBubble (text/image/location), ChatInput, EmojiPicker, TTL picker.</div>
+      </div>
+      <div class="box">
+        <div class="title">Modals</div>
+        <div class="desc">Settings, add contact (invite code), create group.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════ STATE LAYER ════════════ -->
+  <div class="section">
+    <div class="section-header">
+      <span class="icon">⚡</span>
+      <span class="label">State Management — Zustand 5</span>
+    </div>
+    <div class="section-body">
+      <div class="box accent">
+        <div class="title">Identity</div>
+        <div class="desc">privkey (Uint8Array), pubkey (hex), name</div>
+        <span class="tag">localStorage</span>
+      </div>
+      <div class="box accent">
+        <div class="title">Contacts & Rooms</div>
+        <div class="desc">Record&lt;pubkey, Contact&gt; + Record&lt;hash, Room&gt;</div>
+        <span class="tag">localStorage</span>
+      </div>
+      <div class="box accent">
+        <div class="title">Messages</div>
+        <div class="desc">Record&lt;chatId, Message[]&gt; — max 200 per chat</div>
+        <span class="tag">localStorage</span>
+      </div>
+      <div class="box">
+        <div class="title">UI State</div>
+        <div class="desc">activeChat, unread, sidebarOpen, openModal, relayCount</div>
+        <span class="tag">in-memory</span>
+      </div>
+      <div class="box">
+        <div class="title">Settings</div>
+        <div class="desc">lang, autoTranslate, allowExternalTranslation</div>
+        <span class="tag">localStorage</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════ MESSAGE SEND FLOW ════════════ -->
+  <div class="divider">── Message flow: Send ──</div>
+
+  <div class="flow">
+    <div class="flow-step">
+      <div class="num">1</div>
+      <div class="flow-label">Input</div>
+      <div class="flow-desc">User types message in ChatInput</div>
+    </div>
+    <div class="flow-step">
+      <div class="num">2</div>
+      <div class="flow-label">Envelope</div>
+      <div class="flow-desc">{type, content, ttl?} wrapped as JSON</div>
+    </div>
+    <div class="flow-step">
+      <div class="num">3</div>
+      <div class="flow-label">Encryption</div>
+      <div class="flow-desc">DM: NIP-04 (ECDH + AES-256-CBC)<br>Room: Plaintext (Kind 42)</div>
+    </div>
+    <div class="flow-step">
+      <div class="num">4</div>
+      <div class="flow-label">Signing</div>
+      <div class="flow-desc">Schnorr signature with private key (secp256k1)</div>
+    </div>
+    <div class="flow-step">
+      <div class="num">5</div>
+      <div class="flow-label">Broadcast</div>
+      <div class="flow-desc">Event sent to all 7 relays via WebSocket</div>
+    </div>
+  </div>
+
+  <!-- ════════════ MESSAGE RECEIVE FLOW ════════════ -->
+  <div class="divider">── Message flow: Receive ──</div>
+
+  <div class="flow">
+    <div class="flow-step">
+      <div class="num">1</div>
+      <div class="flow-label">Relay Event</div>
+      <div class="flow-desc">WebSocket receives Kind 4 (DM) or Kind 42 (Room)</div>
+    </div>
+    <div class="flow-step">
+      <div class="num">2</div>
+      <div class="flow-label">Decryption</div>
+      <div class="flow-desc">DM: NIP-04 decrypt with own privkey + sender pubkey</div>
+    </div>
+    <div class="flow-step">
+      <div class="num">3</div>
+      <div class="flow-label">Deduplication</div>
+      <div class="flow-desc">eventId or (ts + pubkey) — duplicate events ignored</div>
+    </div>
+    <div class="flow-step">
+      <div class="num">4</div>
+      <div class="flow-label">Store</div>
+      <div class="flow-desc">addMessage() → Zustand + localStorage persisted</div>
+    </div>
+    <div class="flow-step">
+      <div class="num">5</div>
+      <div class="flow-label">Display</div>
+      <div class="flow-desc">React renders MessageBubble + optional auto-translation</div>
+    </div>
+  </div>
+
+  <!-- ════════════ LIBRARY MODULES ════════════ -->
+  <div class="section">
+    <div class="section-header">
+      <span class="icon">🔧</span>
+      <span class="label">Library Modules — src/lib/</span>
+    </div>
+    <div class="section-body">
+      <div class="box green">
+        <div class="title">crypto.ts</div>
+        <div class="desc">Key generation, NIP-04 encrypt/decrypt, event signing, NIP-19 encoding (npub/nsec).</div>
+        <span class="tag green">E2E</span><span class="tag green">secp256k1</span>
+      </div>
+      <div class="box green">
+        <div class="title">nostr.ts</div>
+        <div class="desc">WebSocket relay layer: connect, subscribe, publish. Invite code lookup (Kind 10420).</div>
+        <span class="tag green">7 Relays</span><span class="tag green">Auto-Reconnect</span>
+      </div>
+      <div class="box">
+        <div class="title">storage.ts</div>
+        <div class="desc">Typed localStorage wrappers with QuotaExceededError handling.</div>
+        <span class="tag">localStorage</span>
+      </div>
+      <div class="box">
+        <div class="title">offlineQueue.ts</div>
+        <div class="desc">Message queue when offline. Flush on reconnect or 'online' event.</div>
+        <span class="tag">Offline-First</span>
+      </div>
+      <div class="box">
+        <div class="title">translate.ts</div>
+        <div class="desc">Language detection + translation. Chrome AI (local) → MyMemory API (external, optional).</div>
+        <span class="tag green">Chrome AI local</span><span class="tag red">MyMemory external</span>
+      </div>
+      <div class="box">
+        <div class="title">i18n.ts</div>
+        <div class="desc">Translation dictionary (EN, RU). Flat key-value structure with interpolation.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════ NOSTR PROTOCOL ════════════ -->
+  <div class="section">
+    <div class="section-header">
+      <span class="icon">🌐</span>
+      <span class="label">Nostr Protocol — Decentralised Relay Network</span>
+    </div>
+    <div class="section-body" style="flex-direction: column; gap: 1.2rem;">
+
+      <div class="two-col">
+        <div class="box accent">
+          <div class="title">Event Types (Publish & Subscribe)</div>
+          <table style="width:100%; font-size:0.7rem; color:#7a7672; margin-top:0.4rem; border-collapse:collapse;">
+            <tr style="border-bottom:1px solid #2e2e33;">
+              <td style="padding:0.3rem 0; color:#e0d6c8; font-weight:600;">Kind 4</td>
+              <td style="padding:0.3rem 0;">Direct messages (E2E encrypted)</td>
+              <td style="padding:0.3rem 0;"><span class="tag green" style="margin:0">NIP-04</span></td>
+            </tr>
+            <tr style="border-bottom:1px solid #2e2e33;">
+              <td style="padding:0.3rem 0; color:#e0d6c8; font-weight:600;">Kind 42</td>
+              <td style="padding:0.3rem 0;">Group messages (plaintext)</td>
+              <td style="padding:0.3rem 0;"><span class="tag red" style="margin:0">NIP-28</span></td>
+            </tr>
+            <tr>
+              <td style="padding:0.3rem 0; color:#e0d6c8; font-weight:600;">Kind 10420</td>
+              <td style="padding:0.3rem 0;">Invite codes (SHA-256 hash)</td>
+              <td style="padding:0.3rem 0;"><span class="tag" style="margin:0">Custom</span></td>
+            </tr>
+          </table>
+        </div>
+        <div class="box accent">
+          <div class="title">Subscriptions on each relay</div>
+          <div style="font-family:monospace; font-size:0.68rem; color:#6a9955; margin-top:0.4rem; line-height:1.8;">
+            REQ dm-sub &nbsp;{ kinds: [4], "#p": [myPubkey] }<br>
+            REQ room-sub { kinds: [42], "#e": [roomHash...] }
+          </div>
+          <div class="desc" style="margin-top:0.4rem;">DMs filtered by own pubkey. Rooms filtered by room hash.</div>
+        </div>
+      </div>
+
+      <div>
+        <div style="font-size:0.78rem; font-weight:600; color:#e0d6c8; margin-bottom:0.5rem;">Connected Relays (7)</div>
+        <div class="relay-grid">
+          <div class="relay">wss://relay.damus.io</div>
+          <div class="relay">wss://nos.lol</div>
+          <div class="relay">wss://nostr.mom</div>
+          <div class="relay">wss://nostr.wine</div>
+          <div class="relay">wss://purplepag.es</div>
+          <div class="relay">wss://relay.primal.net</div>
+          <div class="relay">wss://relay.nostr.bg</div>
+        </div>
+        <div style="font-size:0.65rem; color:#5a5448; margin-top:0.5rem;">Auto-reconnect with exponential backoff (5s → 120s max). Relay status shown in real-time in the sidebar.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════ FEATURES ════════════ -->
+  <div class="section">
+    <div class="section-header">
+      <span class="icon">🛡</span>
+      <span class="label">Security & Features</span>
+    </div>
+    <div class="section-body">
+      <div class="box green">
+        <div class="title">E2E Encryption</div>
+        <div class="desc">NIP-04: ECDH key exchange + AES-256-CBC. Private key never leaves the device.</div>
+        <span class="tag green">secp256k1</span><span class="tag green">AES-256</span>
+      </div>
+      <div class="box green">
+        <div class="title">Invite Codes</div>
+        <div class="desc">6-digit code → SHA-256 hash on relay. 10 min validity. Relay never sees the plaintext code.</div>
+        <span class="tag green">SHA-256</span><span class="tag">10 min TTL</span>
+      </div>
+      <div class="box">
+        <div class="title">Self-Destructing Messages</div>
+        <div class="desc">TTL field in message envelope. Countdown timer in the UI. Cleanup every 1s via interval.</div>
+        <span class="tag">30s / 5m / 1h</span>
+      </div>
+      <div class="box">
+        <div class="title">Image Compression</div>
+        <div class="desc">Client-side compression. Max 500 KB as Base64 data URL directly in the encrypted payload.</div>
+        <span class="tag">max 500 KB</span>
+      </div>
+      <div class="box">
+        <div class="title">Offline Queue</div>
+        <div class="desc">Messages buffered in localStorage when offline. Automatic flush on reconnect.</div>
+        <span class="tag">localStorage</span>
+      </div>
+      <div class="box">
+        <div class="title">PWA</div>
+        <div class="desc">Vite-Plugin-PWA (Workbox). CacheFirst for app shell. Installable on iOS, Android, desktop.</div>
+        <span class="tag">Service Worker</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════ TRANSLATION PIPELINE ════════════ -->
+  <div class="section">
+    <div class="section-header">
+      <span class="icon">🌍</span>
+      <span class="label">Translation Pipeline</span>
+    </div>
+    <div class="section-body" style="flex-direction: column;">
+      <div class="flow">
+        <div class="flow-step">
+          <div class="num">1</div>
+          <div class="flow-label">Check cache</div>
+          <div class="flow-desc">djb2 hash → localStorage lookup</div>
+        </div>
+        <div class="flow-step">
+          <div class="num">2</div>
+          <div class="flow-label">Detect language</div>
+          <div class="flow-desc">Chrome AI Detector (offline) or script heuristic</div>
+        </div>
+        <div class="flow-step">
+          <div class="num">3</div>
+          <div class="flow-label">Chrome AI</div>
+          <div class="flow-desc">Local in browser, offline, no data leak</div>
+        </div>
+        <div class="flow-step">
+          <div class="num">4</div>
+          <div class="flow-label">MyMemory Fallback</div>
+          <div class="flow-desc">Only if permitted! Text is sent externally.</div>
+        </div>
+        <div class="flow-step">
+          <div class="num">5</div>
+          <div class="flow-label">Save to cache</div>
+          <div class="flow-desc">Result stored in localStorage for next time</div>
+        </div>
+      </div>
+      <div style="display:flex; gap:0.8rem; flex-wrap:wrap;">
+        <div class="box green" style="flex:1;">
+          <div class="title">Chrome AI (Primary)</div>
+          <div class="desc">Fully local. No network needed. Data stays on the device. Chrome 127+ required.</div>
+          <span class="tag green">Private</span><span class="tag green">Offline</span>
+        </div>
+        <div class="box warn" style="flex:1;">
+          <div class="title">MyMemory API (Fallback)</div>
+          <div class="desc">Decrypted message is sent to external server. Weakens E2E encryption. Only if user explicitly allows it.</div>
+          <span class="tag red">External</span><span class="tag red">Opt-in</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════ TECH STACK ════════════ -->
+  <div class="section">
+    <div class="section-header">
+      <span class="icon">📦</span>
+      <span class="label">Tech Stack</span>
+    </div>
+    <div class="section-body" style="justify-content: center;">
+      <div class="box" style="text-align:center; flex: unset; min-width: unset; padding: 0.5rem 1rem;">
+        <div class="title">React 19</div>
+      </div>
+      <div class="box" style="text-align:center; flex: unset; min-width: unset; padding: 0.5rem 1rem;">
+        <div class="title">TypeScript 5.7</div>
+      </div>
+      <div class="box" style="text-align:center; flex: unset; min-width: unset; padding: 0.5rem 1rem;">
+        <div class="title">Vite 6</div>
+      </div>
+      <div class="box" style="text-align:center; flex: unset; min-width: unset; padding: 0.5rem 1rem;">
+        <div class="title">Zustand 5</div>
+      </div>
+      <div class="box" style="text-align:center; flex: unset; min-width: unset; padding: 0.5rem 1rem;">
+        <div class="title">nostr-tools</div>
+      </div>
+      <div class="box" style="text-align:center; flex: unset; min-width: unset; padding: 0.5rem 1rem;">
+        <div class="title">Workbox PWA</div>
+      </div>
+      <div class="box" style="text-align:center; flex: unset; min-width: unset; padding: 0.5rem 1rem;">
+        <div class="title">Vercel</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Legend -->
+  <div class="legend">
+    <div class="legend-item"><div class="legend-dot enc"></div> E2E encrypted (local)</div>
+    <div class="legend-item"><div class="legend-dot plain"></div> Plaintext / external</div>
+    <div class="legend-item"><div class="legend-dot local"></div> Nostr protocol</div>
+    <div class="legend-item"><div class="legend-dot ext"></div> Persisted (localStorage)</div>
+  </div>
+
+  <div style="text-align:center; margin-top:2rem; font-size:0.65rem; color:#3a3a3e; letter-spacing:0.08em;">
+    © 2026 Kay (__archon) Muehlenbruch · MIT License · Alina v2.0
+  </div>
+
+</div>
+</body>
+</html>
