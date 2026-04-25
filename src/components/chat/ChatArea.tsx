@@ -58,9 +58,9 @@ export function ChatArea() {
             <Menu size={22} />
             <span>{t('chat.openSidebar')}</span>
           </button>
-          <img src="/logo-icon.svg" alt="Rotary Connect" style={{ width: 56, height: 56, marginBottom: '0.1rem', flexShrink: 0 }} />
-          <div style={{ fontFamily: "'Jost', sans-serif", fontWeight: 200, fontSize: '1.8rem', color: 'var(--border)', letterSpacing: '0.1em', marginBottom: '0.5rem' }}>
-            Rotary Connect
+          <img src="/logo-icon.svg" alt="Rotary" style={{ width: 56, height: 56, marginBottom: '0.1rem', flexShrink: 0 }} />
+          <div style={{ fontFamily: "'Jost', sans-serif", fontWeight: 300, fontSize: '1.6rem', color: 'var(--border)', letterSpacing: '0.15em', marginBottom: '0.5rem' }}>
+            Connect
           </div>
           <p style={{ fontSize: '0.9rem', color: 'var(--muted)', marginBottom: '0.2rem', fontWeight: 500 }}>
             {t('chat.tagline')}

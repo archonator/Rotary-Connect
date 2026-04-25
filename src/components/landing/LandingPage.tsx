@@ -32,7 +32,7 @@ export function LandingPage() {
       {/* HERO — Entwurf 1: Inline Brand */}
       <section className="hero-1">
         <div className="hero-brand">
-          <span className="hero-brand-name">Rotary Connect</span>
+          <span className="hero-brand-name">Connect</span>
           <div className="hero-brand-line" />
           <span className="hero-brand-tagline">{t('landing.promisesEyebrow').replace('Four promises', 'Private messaging').replace('Четыре обещания', 'Приватный мессенджер')}</span>
         </div>

@@ -62,12 +62,13 @@ export function AppSplash({ onDone }: { onDone: () => void }) {
       `}</style>
 
       <div className="splash-loader" />
+      <img src="/logo-icon.svg" alt="Rotary" style={{ width: 72, height: 72, marginTop: '2rem' }} />
       <div className="splash-text" style={{
-        marginTop: '2.5rem', fontFamily: "'Jost', sans-serif",
-        fontSize: '2rem', fontWeight: 200,
-        color: '#F7A81B', letterSpacing: '0.1em',
+        marginTop: '0.5rem', fontFamily: "'Jost', sans-serif",
+        fontSize: '1.6rem', fontWeight: 300,
+        color: '#F7A81B', letterSpacing: '0.15em',
       }}>
-        Rotary Connect
+        Connect
       </div>
     </div>
   )
