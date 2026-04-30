@@ -148,31 +148,22 @@ function LocationBubble({ content, isMine, openMapLabel }: { content: string; is
     if (typeof lat !== 'number' || typeof lng !== 'number') throw new Error('invalid')
     if (lat < -90 || lat > 90 || lng < -180 || lng > 180) throw new Error('out of range')
     if (!isFinite(lat) || !isFinite(lng)) throw new Error('not finite')
-    const mapUrl = `https://www.google.com/maps?q=${lat},${lng}`
-    const previewUrl = `https://maps.googleapis.com/maps/api/staticmap?center=${lat},${lng}&zoom=15&size=280x160&markers=color:red%7C${lat},${lng}&scale=2&format=jpg`
+    // OpenStreetMap link — no third-party JS or image is loaded here, the recipient
+    // controls when (and whether) to leak coordinates to a map provider by clicking.
+    const mapUrl = `https://www.openstreetmap.org/?mlat=${lat}&mlon=${lng}#map=15/${lat}/${lng}`
     return (
-      <div className="msg-bubble location-msg" style={{ flexDirection: 'column', gap: '0.4rem', padding: 0, overflow: 'hidden' }}>
-        <a href={mapUrl} target="_blank" rel="noopener noreferrer" style={{ display: 'block' }}>
-          <img
-            src={previewUrl}
-            alt={`📍 ${lat.toFixed(4)}, ${lng.toFixed(4)}`}
-            style={{ width: '100%', maxWidth: 280, display: 'block', borderRadius: '10px 10px 0 0' }}
-            onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
-          />
-        </a>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.4rem 0.7rem 0.5rem' }}>
-          <MapPin size={16} style={{ flexShrink: 0 }} />
-          <div>
-            <div className="location-words">{`${lat.toFixed(4)}, ${lng.toFixed(4)}`}</div>
-            <a
-              className={`location-link${isMine ? ' mine' : ''}`}
-              href={mapUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              {openMapLabel}
-            </a>
-          </div>
+      <div className="msg-bubble location-msg" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.7rem 0.9rem' }}>
+        <MapPin size={18} style={{ flexShrink: 0 }} />
+        <div>
+          <div className="location-words">{`${lat.toFixed(5)}, ${lng.toFixed(5)}`}</div>
+          <a
+            className={`location-link${isMine ? ' mine' : ''}`}
+            href={mapUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            {openMapLabel}
+          </a>
         </div>
       </div>
     )

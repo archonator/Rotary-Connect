@@ -34,10 +34,12 @@ export function nip44Decrypt(
 
 // ── NIP-17 Seal & Gift Wrap ───────────────────────────────────────────────────
 
-/** Create a Kind 13 Seal: encrypt a Kind 14 rumor for a specific recipient */
+/**
+ * Create a Kind 13 Seal: encrypt a Kind 14 rumor for a specific recipient.
+ * The sender's pubkey is derived from `senderPrivkey` by `finalizeEvent`.
+ */
 export function createSeal(
   senderPrivkey: Uint8Array,
-  senderPubkey: string,
   recipientPubkey: string,
   rumor: object,
 ): VerifiedEvent {
@@ -92,13 +94,16 @@ export function unsealRumor(
   } catch { return null }
 }
 
-/** Randomize timestamp ±48h to hide metadata (uses crypto PRNG) */
+/**
+ * Random timestamp in `[now - 48h, now]` to hide metadata.
+ * Always in the past so strict relays don't drop "future" events.
+ */
 function randomTimestamp(): number {
   const now = Math.floor(Date.now() / 1000)
   const arr = new Uint32Array(1)
   crypto.getRandomValues(arr)
-  const jitter = (arr[0] % 172800) - 86400 // ±24h with crypto PRNG
-  return now + jitter
+  const jitter = (arr[0] ?? 0) % 172800 // 0..48h
+  return now - jitter
 }
 
 export function createKeyPair(): { privkey: Uint8Array; pubkey: string } {
@@ -191,10 +196,10 @@ export function createCrossSignature(
 /**
  * Create a key migration event signed by the OLD key.
  * Contains the new pubkey + cross-signature from the new key.
+ * The old pubkey is recovered from `event.pubkey` after signing.
  */
 export function createMigrationEvent(
   oldPrivkey: Uint8Array,
-  oldPubkey: string,
   newPubkey: string,
   crossSignature: string,
 ): VerifiedEvent {

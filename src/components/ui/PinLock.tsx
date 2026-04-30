@@ -19,8 +19,50 @@ interface PinSetupProps {
 // ── Lockout state (persisted outside vault — must be readable before unlock) ──
 
 const ATTEMPTS_KEY = 'alina_pin_attempts'
-const MAX_ATTEMPTS = 5
-const LOCKOUT_MS = 60_000
+
+/**
+ * Lockout schedule based on consecutive failed attempts.
+ * Capped at 24h. Note this is a UI-side hint — an attacker with device access can
+ * clear `localStorage` to skip it; the real protection is PBKDF2-600k inside the vault.
+ */
+const LOCKOUT_LADDER_MS = [
+  0,            // attempts 0..4 — no lock
+  0, 0, 0, 0,
+  60_000,       // attempt 5  — 1 min
+  5 * 60_000,   // attempt 6  — 5 min
+  15 * 60_000,  // attempt 7  — 15 min
+  60 * 60_000,  // attempt 8  — 1 h
+  6 * 3600_000, // attempt 9  — 6 h
+  24 * 3600_000,// attempt 10+ — 24 h
+] as const
+
+function lockoutForAttempt(count: number): number {
+  if (count < LOCKOUT_LADDER_MS.length) return LOCKOUT_LADDER_MS[count] ?? 0
+  return LOCKOUT_LADDER_MS[LOCKOUT_LADDER_MS.length - 1] ?? 0
+}
+
+/** PINs that are too predictable to be acceptable. */
+const WEAK_PINS = new Set([
+  '0000', '1111', '2222', '3333', '4444', '5555', '6666', '7777', '8888', '9999',
+  '1234', '4321', '0123', '1212', '2121', '1004', '2580', '0852',
+  '000000', '111111', '222222', '333333', '444444', '555555', '666666',
+  '777777', '888888', '999999', '123456', '654321', '012345', '111222',
+])
+
+export function isWeakPin(pin: string): boolean {
+  if (WEAK_PINS.has(pin)) return true
+  // All same digit
+  if (/^(\d)\1+$/.test(pin)) return true
+  // Strict ascending or descending sequence (e.g. "23456", "98765")
+  let asc = true, desc = true
+  for (let i = 1; i < pin.length; i++) {
+    const a = pin.charCodeAt(i - 1)
+    const b = pin.charCodeAt(i)
+    if (b !== a + 1) asc = false
+    if (b !== a - 1) desc = false
+  }
+  return asc || desc
+}
 
 function getAttempts(): { count: number; lockedUntil: number } {
   try {
@@ -36,12 +78,16 @@ function setAttempts(count: number, lockedUntil: number): void {
   localStorage.setItem(ATTEMPTS_KEY, JSON.stringify({ count, lockedUntil }))
 }
 
-// ── Helpers ──────────────────────────────────────────────────────
-
-/** Check if a vault or plaintext data requires a PIN gate */
-export function needsVaultGate(): boolean {
-  return isVaultActive() || hasPlaintextData()
+function formatLockout(ms: number): string {
+  const s = Math.ceil(ms / 1000)
+  if (s < 60) return `${s}s`
+  const m = Math.ceil(s / 60)
+  if (m < 60) return `${m} min`
+  const h = Math.ceil(m / 60)
+  return `${h}h`
 }
+
+// ── Helpers ──────────────────────────────────────────────────────
 
 /** Determine gate mode */
 export function getVaultGateMode(): 'unlock' | 'setup' | 'none' {
@@ -104,16 +150,17 @@ export function PinLock({ onUnlock }: PinLockProps) {
       } else {
         const attempts = getAttempts()
         const newCount = attempts.count + 1
+        const lockoutMs = lockoutForAttempt(newCount)
 
-        if (newCount >= MAX_ATTEMPTS) {
-          const lockedUntil = Date.now() + LOCKOUT_MS
+        if (lockoutMs > 0) {
+          const lockedUntil = Date.now() + lockoutMs
           setAttempts(newCount, lockedUntil)
           setLocked(true)
-          setLockRemaining(Math.ceil(LOCKOUT_MS / 1000))
-          setError(`Too many attempts. Locked for ${Math.ceil(LOCKOUT_MS / 1000)}s`)
+          setLockRemaining(Math.ceil(lockoutMs / 1000))
+          setError(`Wrong PIN. Locked for ${formatLockout(lockoutMs)}.`)
         } else {
           setAttempts(newCount, 0)
-          setError(`Wrong PIN (${MAX_ATTEMPTS - newCount} attempts left)`)
+          setError('Wrong PIN.')
         }
 
         setShake(true)
@@ -213,6 +260,10 @@ export function PinSetup({ onComplete, isMigration }: PinSetupProps) {
 
   const handleEnter = () => {
     if (pin.length < 4) return
+    if (isWeakPin(pin)) {
+      setError('That PIN is too easy to guess. Try something less predictable.')
+      return
+    }
     setStep('confirm')
     setError('')
   }

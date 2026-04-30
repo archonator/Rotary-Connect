@@ -7,7 +7,7 @@
  */
 
 import { WEBRTC_SIGNAL_KIND } from '../constants'
-import { encryptDM, decryptDM, createSignedEvent, isValidEvent } from '../crypto'
+import { encryptDM, decryptDM, createSignedEvent } from '../crypto'
 import { publishToRelays } from '../nostr'
 import { saveLog } from '../storage'
 import { handleSignal } from './PeerManager'
@@ -65,10 +65,13 @@ export async function handleSignalingEvent(
     const decrypted = await decryptDM(privkey, fromPubkey, event.content)
     const data = JSON.parse(decrypted)
 
-    // Ignore old signals (> 60 seconds)
-    const age = Date.now() - data.ts
-    if (age > 60_000) {
-      saveLog('webrtc-signal', `Ignoring stale signal from ${fromPubkey.slice(0, 8)}... (${Math.round(age / 1000)}s old)`)
+    // Use the OUTER signed Nostr event timestamp for staleness, not the (untrusted)
+    // inner payload — otherwise an attacker could replay a stale signal by repacking
+    // it with a fresh inner ts.
+    const eventTs = event.created_at * 1000
+    const age = Date.now() - eventTs
+    if (age > 60_000 || age < -10_000) {
+      saveLog('webrtc-signal', `Ignoring stale/future signal from ${fromPubkey.slice(0, 8)}... (${Math.round(age / 1000)}s)`)
       return
     }
 
@@ -77,7 +80,7 @@ export async function handleSignalingEvent(
       from: fromPubkey,
       to: myPubkey,
       payload: data.payload,
-      ts: data.ts,
+      ts: eventTs,
     }
 
     await handleSignal(signal)
