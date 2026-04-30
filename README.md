@@ -1,80 +1,72 @@
-# Alina
+# Rotary Connect
 
-**Sicher. Dezentral. Deins.**
+**Connecting Rotarians worldwide. Private. Decentralized. No server.**
 
-Alina ist ein Ende-zu-Ende verschlüsselter Messenger ohne Server, ohne Konto und ohne Werbung — gebaut auf dem offenen [Nostr](https://nostr.com)-Protokoll.
-
----
-
-## Was macht Alina besonders?
-
-- **Kein Konto nötig** — kein Benutzername, keine Telefonnummer, keine E-Mail
-- **Kein Server** — Nachrichten laufen über dezentrale Nostr-Relays
-- **Ende-zu-Ende verschlüsselt** — private Chats mit NIP-04 (ECDH + AES-256-CBC)
-- **Einladungsbasiert** — Kontakte werden über 6-stellige Einmalcodes hinzugefügt
-- **Gruppenräume** — alle mit demselben Gruppenname landen im gleichen Gespräch
-- **Automatische Übersetzung** — Nachrichten in Fremdsprachen werden clientseitig übersetzt, ohne dass der Klartext einen fremden Server erreicht
-- **Mehrsprachig** — Deutsch, Englisch, Russisch (umschaltbar vor und nach dem Login)
-- **PWA** — installierbar auf dem Homescreen wie eine native App
+Rotary Connect is an end-to-end encrypted messenger with no account, no server, and no tracking — built on the open [Nostr](https://nostr.com) protocol and designed for the Rotary community.
 
 ---
 
-## Automatische Übersetzung
+## Highlights
 
-Die Übersetzung passiert **nach** dem NIP-04-Decrypt, vollständig im Browser des Empfängers. Der entschlüsselte Text verlässt das Gerät nicht unverschlüsselt in Richtung Relay.
-
-```
-Relay (verschlüsselt) → Alina decrypt → Übersetzungs-API → Anzeige
-```
-
-**Provider-Kette:**
-
-1. **Chrome AI Translation API** (Chrome 127+) — offline, kein API-Key, kein Netzwerk
-2. **MyMemory API** — kostenloser Fallback, kein Key erforderlich
-3. **localStorage-Cache** — jede übersetzte Phrase wird gecacht, wiederholte Anzeige kostet keinen API-Call
-
-**Spracherkennung:**
-
-1. Chrome AI Language Detector (falls verfügbar)
-2. Script-Heuristik als Fallback (Kyrillisch → ru/uk, CJK → zh/ja, Arabisch → ar …)
-
-Übersetzung ein-/ausschalten: Einstellungen → „Automatisch übersetzen"
+- **No account** — no username, no phone number, no email
+- **No server** — messages travel through decentralized Nostr relays
+- **End-to-end encrypted** — DMs use NIP-04, group rooms use NIP-17 (Sealed + Gift Wrapped)
+- **Optional WebRTC P2P** — direct peer-to-peer when both sides are online (relays as fallback)
+- **Local vault** — all device data is encrypted at rest with a user PIN (PBKDF2 + AES-256-GCM, non-extractable key)
+- **Invite-based** — add contacts via 6-digit one-time codes (or `npub`)
+- **Group rooms** — anyone with the same room name joins the same chat
+- **Disappearing messages** — per-message TTL from 30 seconds to 24 hours
+- **Key rotation** — rotate your Nostr identity with cross-signed migration events
+- **Offline queue** — compose offline, automatic flush on reconnect
+- **Auto-translation** — client-side translation via Chrome AI (offline) with optional MyMemory fallback
+- **PWA** — installable on iOS, Android, and desktop
 
 ---
 
-## Technologie
+## Tech stack
 
-| Was | Womit |
+| Layer | Technology |
 |---|---|
-| Frontend | React 19 + TypeScript |
-| State | Zustand |
-| Protokoll | Nostr (NIP-01, NIP-04, NIP-19) |
-| Übersetzung | Chrome AI API + MyMemory |
-| Build | Vite + vite-plugin-pwa |
+| UI | React 19 + TypeScript |
+| Routing | react-router-dom 7 (`/` landing, `/app` messenger) |
+| State | Zustand 5 |
+| Protocol | Nostr (NIP-01, NIP-04, NIP-17, NIP-19, custom kinds 10420 / 10051 / 25050) |
+| Crypto | nostr-tools 2 + WebCrypto (AES-GCM, PBKDF2) |
+| P2P | WebRTC (RTCPeerConnection + RTCDataChannel) with Nostr signaling |
+| Translation | Chrome AI Translation API + MyMemory fallback |
+| Build | Vite 6 + vite-plugin-pwa (Workbox) |
 | Icons | Lucide React |
-| Deployment | Vercel |
+| Deployment | Vercel (static SPA) |
 
 ---
 
-## Lokale Entwicklung
+## Local development
 
 ```bash
-git clone https://github.com/Leon-Muehlenbruch/Alina
-cd Alina
+git clone https://github.com/archonator/Rotary-Connect.git
+cd Rotary-Connect
 npm install
 npm run dev
 ```
 
-App läuft auf `http://localhost:5173`
+App runs on `http://localhost:5173`.
+
+```bash
+npm test          # run unit tests (vitest)
+npm run build     # type-check + production bundle to dist/
+npm run preview   # serve dist/ locally
+```
 
 ---
 
-## Features & Roadmap
+## Documentation
 
-Siehe [FEATURES.md](./FEATURES.md)
+- [ARCHITECTURE.md](./ARCHITECTURE.md) — system design, crypto layers, message flow
+- [FEATURES.md](./FEATURES.md) — feature list with technical notes
+- [ROADMAP.md](./ROADMAP.md) — what's next
 
 ---
 
-## Lizenz
+## License
 
-MIT
+MIT © 2026 Kay (__archon) Muehlenbruch

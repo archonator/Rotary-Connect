@@ -25,7 +25,8 @@ export default defineConfig({
           {
             urlPattern: /^https:\/\/fonts\.gstatic\.com/,
             handler: 'CacheFirst',
-            options: {              cacheName: 'google-fonts-webfonts',
+            options: {
+              cacheName: 'google-fonts-webfonts',
               expiration: { maxEntries: 10, maxAgeSeconds: 60 * 60 * 24 * 365 },
             },
           },

@@ -1,7 +1,22 @@
+# Dependencies
 node_modules/
+
+# Build output
 dist/
-.DS_Store
-*.local
+dist2/
+*.tsbuildinfo
+
+# Env
 .env
 .env.*
-dist2/
+*.local
+
+# OS
+.DS_Store
+
+# Editor
+.vscode/
+.idea/
+
+# Vercel
+.vercel/
