@@ -1,5 +1,8 @@
 import { saveLog, loadOfflineQueue, saveOfflineQueue } from './storage'
 
+/** Maximum retry attempts before a queued message is dropped (dead-lettered). */
+const MAX_RETRIES = 5
+
 export interface QueuedMessage {
   id: string
   chatType: 'dm' | 'room'
@@ -7,6 +10,8 @@ export interface QueuedMessage {
   recipientOrRoomHash: string
   msgData: { type: string; content: string; name?: string }
   timestamp: number
+  /** Number of failed publish attempts so far. Defaults to 0 for legacy entries. */
+  attempts?: number
 }
 
 function loadQueue(): QueuedMessage[] {
@@ -53,6 +58,23 @@ export function setFlushCallback(cb: typeof flushCallback): void {
   flushCallback = cb
 }
 
+/** Increment the retry counter for a queued message (or drop it if maxed out). */
+function bumpAttempts(id: string): void {
+  const queue = loadQueue()
+  const idx = queue.findIndex(m => m.id === id)
+  if (idx === -1) return
+  const target = queue[idx]
+  if (!target) return
+  const nextAttempts = (target.attempts ?? 0) + 1
+  if (nextAttempts >= MAX_RETRIES) {
+    queue.splice(idx, 1)
+    saveLog('offline-queue', `Dropped message ${id} after ${nextAttempts} failed attempts`)
+  } else {
+    queue[idx] = { ...target, attempts: nextAttempts }
+  }
+  saveQueue(queue)
+}
+
 export async function flushQueue(): Promise<void> {
   if (!flushCallback) return
   const queue = getQueuedMessages()
@@ -64,8 +86,11 @@ export async function flushQueue(): Promise<void> {
       await flushCallback(msg)
       dequeue(msg.id)
     } catch (e) {
-      saveLog('offline-queue', `Failed to flush message ${msg.id}: ${String(e)}`)
-      break // Stop on first failure, will retry later
+      saveLog('offline-queue', `Failed to flush message ${msg.id}: ${String(e)} (attempt ${(msg.attempts ?? 0) + 1}/${MAX_RETRIES})`)
+      bumpAttempts(msg.id)
+      // Don't `break` — a single bad message must not block well-formed messages
+      // queued after it. If the underlying failure is global (network down), the
+      // remaining attempts will simply fail too and increment their counters.
     }
   }
 }

@@ -64,8 +64,11 @@ export function useNostrRelays() {
 
       const added = addMessage(chatId, msg)
       if (added) {
-        // Vibrate on incoming message
-        if (navigator.vibrate) navigator.vibrate(200)
+        // Vibrate on incoming message — read live from the store so toggling in
+        // Settings takes effect immediately.
+        if (useStore.getState().vibrateOnIncoming && navigator.vibrate) {
+          navigator.vibrate(200)
+        }
 
         if (activeChatRef.current?.chatId !== chatId) {
           incrementUnread(chatId)
@@ -98,7 +101,9 @@ export function useNostrRelays() {
 
         const added = addMessage(chatId, message)
         if (added) {
-          if (navigator.vibrate) navigator.vibrate(200)
+          if (useStore.getState().vibrateOnIncoming && navigator.vibrate) {
+            navigator.vibrate(200)
+          }
           if (activeChatRef.current?.chatId !== chatId) {
             incrementUnread(chatId)
           }

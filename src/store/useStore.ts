@@ -101,6 +101,9 @@ interface AppState {
   setAutoTranslate: (v: boolean) => void
   allowExternalTranslation: boolean
   setAllowExternalTranslation: (v: boolean) => void
+  // Notifications
+  vibrateOnIncoming: boolean
+  setVibrateOnIncoming: (v: boolean) => void
   setMessageTranslation: (chatId: string, ts: number, pubkey: string, translated: string, detectedLang: string) => void
   updateMessageStatus: (chatId: string, ts: number, pubkey: string, status: 'sending' | 'sent' | 'failed') => void
 
@@ -396,7 +399,8 @@ export const useStore = create<AppState>((set, get) => ({
     const msgs = messages[chatId]
     if (!msgs) return
     const idx = msgs.findIndex(m => m.ts === ts && m.pubkey === pubkey)
-    if (idx === -1) return
+    const target = msgs[idx]
+    if (!target) return
     const updated = [...msgs]
     updated[idx] = { ...target, status }
     const newMessages = { ...messages, [chatId]: updated }
@@ -409,9 +413,10 @@ export const useStore = create<AppState>((set, get) => ({
     const msgs = messages[chatId]
     if (!msgs) return
     const idx = msgs.findIndex(m => m.ts === ts && m.pubkey === pubkey)
-    if (idx === -1) return
+    const target = msgs[idx]
+    if (!target) return
     const updated = [...msgs]
-    updated[idx] = { ...updated[idx], translated, detectedLang }
+    updated[idx] = { ...target, translated, detectedLang }
     const newMessages = { ...messages, [chatId]: updated }
     storage.saveMessages(newMessages)
     set({ messages: newMessages })

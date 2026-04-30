@@ -20,11 +20,30 @@ export function MessageList({ onImageClick }: MessageListProps) {
 
   const chatMessages = activeChat ? (messages[activeChat.chatId] || []) : []
 
+  // Scroll to bottom only if the user was already near the bottom (preserves scroll
+  // position when reading older messages and a new one comes in).
+  const wasNearBottomRef = useRef(true)
   useEffect(() => {
-    if (containerRef.current) {
-      containerRef.current.scrollTop = containerRef.current.scrollHeight
+    const el = containerRef.current
+    if (!el) return
+    const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight
+    wasNearBottomRef.current = distanceFromBottom < 80
+  })
+
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el) return
+    if (wasNearBottomRef.current) {
+      el.scrollTop = el.scrollHeight
     }
   }, [chatMessages.length])
+
+  // Always snap to bottom when switching chats
+  useEffect(() => {
+    const el = containerRef.current
+    if (el) el.scrollTop = el.scrollHeight
+    wasNearBottomRef.current = true
+  }, [activeChat?.chatId])
 
   const handleRetry = useCallback(async (msg: Message) => {
     if (!activeChat || !identity) return

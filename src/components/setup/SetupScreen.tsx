@@ -18,8 +18,10 @@ export function SetupScreen({ onIdentityCreated }: SetupScreenProps = {}) {
   const t = useT()
 
   const [setupName, setSetupName] = useState('')
+  const [setupError, setSetupError] = useState('')
   const [importKey, setImportKey] = useState('')
   const [importName, setImportName] = useState('')
+  const [importError, setImportError] = useState('')
   const [showImport, setShowImport] = useState(false)
 
   // Invite code flow
@@ -40,21 +42,23 @@ export function SetupScreen({ onIdentityCreated }: SetupScreenProps = {}) {
   }, [showInvite])
 
   const handleCreate = () => {
-    if (!setupName.trim()) { alert(t('setup.errorName')); return }
+    if (!setupName.trim()) { setSetupError(t('setup.errorName')); return }
+    setSetupError('')
     createIdentity(setupName.trim())
     onIdentityCreated?.()
   }
 
   const handleImport = () => {
     if (!importKey.trim() || !importName.trim()) {
-      alert(t('setup.errorFields'))
+      setImportError(t('setup.errorFields'))
       return
     }
+    setImportError('')
     try {
       importIdentity(importKey.trim(), importName.trim())
       onIdentityCreated?.()
     } catch {
-      alert(t('setup.errorKey'))
+      setImportError(t('setup.errorKey'))
     }
   }
 
@@ -77,13 +81,11 @@ export function SetupScreen({ onIdentityCreated }: SetupScreenProps = {}) {
 
   const handleJoin = () => {
     if (lookupState !== 'found' || !myName.trim() || !inviterPubkey) return
-    // Create identity first, then add contact
+    // Zustand updates are synchronous, so createIdentity → addContact → resubscribe
+    // can run in order without timing tricks.
     createIdentity(myName.trim())
-    // addContact will run after identity is created (store is sync)
-    setTimeout(() => {
-      addContact(inviterPubkey, inviterName)
-      resubscribeAll()
-    }, 100)
+    addContact(inviterPubkey, inviterName)
+    resubscribeAll()
     onIdentityCreated?.()
   }
 
@@ -222,11 +224,16 @@ export function SetupScreen({ onIdentityCreated }: SetupScreenProps = {}) {
                   placeholder={t('setup.namePlaceholder')}
                   maxLength={30}
                   value={setupName}
-                  onChange={e => setSetupName(e.target.value)}
+                  onChange={e => { setSetupName(e.target.value); setSetupError('') }}
                   onKeyDown={e => e.key === 'Enter' && handleCreate()}
                   autoFocus
                 />
               </div>
+              {setupError && (
+                <div style={{ fontSize: '0.82rem', color: '#e07070', background: '#2a1818', border: '1px solid #5a2a2a', borderRadius: 8, padding: '0.6rem 0.8rem' }}>
+                  {setupError}
+                </div>
+              )}
               <div className="warning-box" style={{ fontSize: '0.82rem', lineHeight: 1.6 }}>{t('setup.keyWarning')}</div>
               <button className="btn" style={{ width: '100%', padding: '0.9rem', fontSize: '1rem', fontWeight: 600 }} onClick={handleCreate}>{t('setup.createBtn')}</button>
             </div>
@@ -256,7 +263,7 @@ export function SetupScreen({ onIdentityCreated }: SetupScreenProps = {}) {
                     type="text"
                     placeholder="nsec1..."
                     value={importKey}
-                    onChange={e => setImportKey(e.target.value)}
+                    onChange={e => { setImportKey(e.target.value); setImportError('') }}
                     style={{ fontSize: '0.78rem', fontFamily: 'monospace' }}
                   />
                 </div>
@@ -267,10 +274,15 @@ export function SetupScreen({ onIdentityCreated }: SetupScreenProps = {}) {
                     placeholder={t('setup.importNamePlaceholder')}
                     maxLength={30}
                     value={importName}
-                    onChange={e => setImportName(e.target.value)}
+                    onChange={e => { setImportName(e.target.value); setImportError('') }}
                     onKeyDown={e => e.key === 'Enter' && handleImport()}
                   />
                 </div>
+                {importError && (
+                  <div style={{ fontSize: '0.82rem', color: '#e07070', background: '#2a1818', border: '1px solid #5a2a2a', borderRadius: 8, padding: '0.6rem 0.8rem' }}>
+                    {importError}
+                  </div>
+                )}
                 <button className="btn secondary" onClick={handleImport}>{t('setup.importBtn')}</button>
               </div>
             )}

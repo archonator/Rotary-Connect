@@ -1,6 +1,17 @@
 import { saveLog } from './storage'
 
+const INSTALLED = Symbol.for('rotary-connect.logger.installed')
+
+/**
+ * Wrap console.error / console.warn and the global error/rejection handlers so
+ * unexpected errors land in the in-app log. Idempotent: re-running the function
+ * (e.g. on HMR reload) does not stack additional wrappers.
+ */
 export function initLogger(): void {
+  const w = window as unknown as Record<symbol, true>
+  if (w[INSTALLED]) return
+  w[INSTALLED] = true
+
   const _error = console.error.bind(console)
   console.error = (...args: unknown[]) => {
     _error(...args)
