@@ -1,3 +1,21 @@
+/**
+ * Globaler Anwendungszustand (Zustand-Store).
+ *
+ * Eine einzige Quelle der Wahrheit für ALLES, was die UI rendert:
+ * Identität, Kontakte, Räume, Nachrichten, ungelesene Zähler,
+ * UI-Modi (geöffnete Modale, Sidebar offen?), aktive Chats, …
+ *
+ * Wir nutzen Zustand statt Redux/Context, weil:
+ *   • Selektoren sind synchron, ohne Provider-Pflicht.
+ *   • Updates fließen direkt durch `set(...)` — keine Reducer-Boilerplate.
+ *   • Keine Re-Render-Stürme: jede Komponente subscribed nur die Slices,
+ *     die sie braucht.
+ *
+ * Persistierung läuft über `lib/storage.ts`. Sensible Werte
+ * (Identität, Kontakte, Räume, Nachrichten, Unread, Offline-Queue)
+ * werden vault-verschlüsselt; UI-Zustand bleibt im RAM.
+ */
+
 import { create } from 'zustand'
 import * as storage from '../lib/storage'
 import { createKeyPair, pubkeyFromPrivkey, decodeNsec, decodeNpub } from '../lib/crypto'
@@ -5,37 +23,46 @@ import { MAX_MESSAGES_PER_CHAT } from '../lib/constants'
 import type { Lang } from '../lib/i18n'
 import type { PeerState } from '../lib/webrtc/types'
 
+/**
+ * Die eigene Identität: Schlüsselpaar plus Anzeigename.
+ * `privkey` ist ein 32-Byte-Uint8Array (secp256k1 secret key),
+ * `pubkey` der zugehörige hex-string (64 Zeichen).
+ */
 export interface Identity {
   privkey: Uint8Array
   pubkey: string
   name: string
 }
 
+/** Ein gespeicherter Kontakt. */
 export interface Contact {
   pubkey: string
   name: string
 }
 
+/** Ein bekannter Gruppenraum. */
 export interface Room {
-  name: string
-  hash: string
-  members: string[] // pubkeys of known group members
+  name: string         // vom User vergebener Name (case-sensitiv für Anzeige)
+  hash: string         // SHA-256 von "alina-room-v1:" + name.toLowerCase()
+  members: string[]    // bekannte Mitglieder (Pubkeys), wachsend per Discovery
 }
 
+/** Eine einzelne Nachricht im Store. */
 export interface Message {
   type: 'text' | 'image' | 'location'
-  content: string
-  pubkey: string
-  name?: string
-  ts: number
-  eventId?: string
-  translated?: string
-  detectedLang?: string
-  ttl?: number        // time-to-live in seconds (e.g. 30, 300, 3600)
-  expiresAt?: number  // absolute timestamp (ms) when the message should vanish
-  status?: 'sending' | 'sent' | 'failed' // delivery status for own messages
+  content: string                 // Text, Base64-Bild oder JSON {lat,lng}
+  pubkey: string                  // Sender-Pubkey
+  name?: string                   // Anzeigename des Senders (in Räumen)
+  ts: number                      // Sendezeitpunkt in ms
+  eventId?: string                // Nostr-Event-ID (DMs) oder seal.id (Räume)
+  translated?: string             // Auto-übersetzte Version (nur Text)
+  detectedLang?: string           // Erkannte Quellsprache (nur Text)
+  ttl?: number                    // Time-to-Live in Sekunden
+  expiresAt?: number              // Absoluter Ablaufzeitpunkt in ms
+  status?: 'sending' | 'sent' | 'failed' // Lieferstatus eigener Nachrichten
 }
 
+/** Welcher Chat ist gerade rechts geöffnet? */
 export interface ActiveChat {
   type: 'dm' | 'room'
   id: string
@@ -124,8 +151,9 @@ export const useStore = create<AppState>((set, get) => ({
   identity: null,
 
   /**
-   * Hydrate store from decrypted storage cache.
-   * Call after vault unlock + loadDecryptedCache().
+   * Lädt alle persistierten Werte aus dem entschlüsselten Storage-Cache
+   * in den Store. Wird einmalig nach dem PIN-Unlock + loadDecryptedCache
+   * aufgerufen und triggert das initiale Render der App.
    */
   hydrate: () => {
     set({
@@ -191,6 +219,12 @@ export const useStore = create<AppState>((set, get) => ({
     set({ contacts: updated })
   },
 
+  /**
+   * Idempotente Variante von addContact: legt einen Kontakt nur dann
+   * an, wenn er noch nicht existiert. Wird vom Empfangshandler benutzt,
+   * wenn eine DM von einem unbekannten Pubkey reinkommt — damit der
+   * Chat überhaupt aufgelistet werden kann.
+   */
   ensureContact: (pubkey, name) => {
     const { contacts } = get()
     if (contacts[pubkey]) return
@@ -207,22 +241,40 @@ export const useStore = create<AppState>((set, get) => ({
     set({ contacts: updated })
   },
 
+  /**
+   * Migriert einen Kontakt, der seinen Schlüssel rotiert hat, vom
+   * alten auf den neuen Pubkey. Wird vom Migrations-Handler in
+   * useNostrRelays gerufen, NACHDEM die Cross-Signature verifiziert
+   * wurde.
+   *
+   * Übernimmt:
+   *   • Kontakt-Eintrag (Name bleibt, Pubkey wechselt)
+   *   • Chat-History unter neuem chatId, Pubkey-Felder einzelner
+   *     Nachrichten werden ebenfalls aktualisiert.
+   *   • Ungelesen-Counter (addiert, falls beide Seiten welche hatten)
+   *   • activeChat, falls gerade dieser Chat geöffnet war.
+   *
+   * No-op, wenn der alte Pubkey unbekannt ist (kein Kontakt zum
+   * Migrieren) oder wenn old === new.
+   */
   migrateContact: (oldPubkey, newPubkey) => {
     if (oldPubkey === newPubkey) return
     const { contacts, messages, unread, activeChat } = get()
     const oldContact = contacts[oldPubkey]
     if (!oldContact) return
 
-    // Move contact entry
+    // 1. Kontakt-Eintrag verschieben
     const updatedContacts = { ...contacts }
     delete updatedContacts[oldPubkey]
     updatedContacts[newPubkey] = { ...oldContact, pubkey: newPubkey }
 
-    // Move chat history under the new chatId
+    // 2. Chat-Historie unter dem neuen chatId fortschreiben
     const oldChatId = 'dm:' + oldPubkey
     const newChatId = 'dm:' + newPubkey
     const updatedMessages: Record<string, Message[]> = { ...messages }
     if (updatedMessages[oldChatId]) {
+      // Auch jede einzelne Nachricht: pubkey rewriten, sonst würde die
+      // UI noch gegen den alten Wert prüfen ("ist von mir?" etc.).
       const carried = (updatedMessages[oldChatId] || []).map(m =>
         m.pubkey === oldPubkey ? { ...m, pubkey: newPubkey } : m,
       )
@@ -230,7 +282,7 @@ export const useStore = create<AppState>((set, get) => ({
       delete updatedMessages[oldChatId]
     }
 
-    // Carry unread + active chat
+    // 3. Ungelesen-Counter und activeChat mitnehmen
     const updatedUnread = { ...unread }
     if (updatedUnread[oldChatId] !== undefined) {
       updatedUnread[newChatId] = (updatedUnread[newChatId] || 0) + (updatedUnread[oldChatId] || 0)
@@ -277,6 +329,12 @@ export const useStore = create<AppState>((set, get) => ({
   // Rooms
   rooms: {},
 
+  /**
+   * Legt einen Raum an oder behält die Member-Liste eines bereits
+   * existierenden Raumes mit demselben Hash bei. Wir starten mit dem
+   * eigenen Pubkey als Mitglied, damit Sender-Listen für Gift Wraps
+   * sofort funktionieren.
+   */
   addRoom: (hash, name) => {
     const { rooms, identity } = get()
     const members = identity ? [identity.pubkey] : []
@@ -286,6 +344,7 @@ export const useStore = create<AppState>((set, get) => ({
     set({ rooms: updated })
   },
 
+  /** Fügt einen Pubkey zur Member-Liste eines Raumes hinzu (idempotent). */
   addRoomMember: (hash, pubkey) => {
     const { rooms } = get()
     const room = rooms[hash]
@@ -299,10 +358,26 @@ export const useStore = create<AppState>((set, get) => ({
   // Messages
   messages: {},
 
+  /**
+   * Fügt eine Nachricht zur entsprechenden Chat-Historie hinzu.
+   *
+   * Deduplizierung:
+   *   • Hat die Nachricht eine `eventId`, ist DAS der Vergleichsschlüssel
+   *     (Nostr-Event-IDs sind global einmalig, plus seal.id für NIP-17-
+   *     Räume — siehe nostr.ts).
+   *   • Sonst (lokal erzeugte Nachrichten ohne Server-Bestätigung):
+   *     Tupel (ts, pubkey). Selten kollisionsbehaftet, aber für die
+   *     Sub-Sekunden-Granularität von ts ausreichend.
+   *
+   * Liefert true zurück, wenn die Nachricht neu war — Aufrufer nutzen
+   * das, um z. B. den Unread-Counter nur einmal hochzuzählen.
+   *
+   * Cap auf MAX_MESSAGES_PER_CHAT (200): bei längerer Historie wird
+   * vorne abgeschnitten — der Messenger ist als Rolling-History gedacht.
+   */
   addMessage: (chatId, msg) => {
     const { messages } = get()
     const existing = messages[chatId] || []
-    // Deduplicate — prefer eventId (unique), fall back to ts+pubkey for local messages
     const dup = msg.eventId
       ? existing.find(m => m.eventId === msg.eventId)
       : existing.find(m => m.ts === msg.ts && m.pubkey === msg.pubkey)
@@ -363,7 +438,15 @@ export const useStore = create<AppState>((set, get) => ({
     }
   },
 
-  // Ephemeral messages — remove all expired messages across all chats
+  /**
+   * Räumt sämtliche selbstlöschenden Nachrichten weg, deren expiresAt
+   * in der Vergangenheit liegt. Wird vom `useEphemeralCleanup`-Hook
+   * jede Sekunde aufgerufen.
+   *
+   * Schreibt nur dann zurück in den Store, wenn sich tatsächlich was
+   * geändert hat — sonst würde jede Sekunde ein Re-Render der gesamten
+   * Chat-Liste ausgelöst.
+   */
   removeExpiredMessages: () => {
     const { messages } = get()
     const now = Date.now()
@@ -429,6 +512,12 @@ export const useStore = create<AppState>((set, get) => ({
   statusMessage: null,
   statusTimeout: null,
 
+  /**
+   * Zeigt eine kurze Statusmeldung am unteren Bildschirmrand.
+   * Mit `duration` (ms) verschwindet die Meldung automatisch nach der
+   * Zeit; ohne `duration` bleibt sie stehen, bis `hideStatus` gerufen
+   * wird (für Loading-Zustände wie "Standort wird ermittelt …").
+   */
   showStatus: (msg, duration) => {
     const { statusTimeout } = get()
     if (statusTimeout) clearTimeout(statusTimeout)

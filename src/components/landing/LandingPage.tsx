@@ -4,6 +4,17 @@ import { useT } from '../../hooks/useT'
 import { SOURCE_PREVIEW } from './sourcePreview'
 import { LanguageToggle } from '../ui/LanguageToggle'
 
+/**
+ * LandingPage — die öffentliche "Über"-Seite unter "/".
+ *
+ * Reines Marketing/Information: erklärt, was Rotary Connect ist,
+ * stellt vier Kernversprechen vor, listet Features und gibt eine
+ * Quick-Start-Anleitung. Kein Identitätszustand, kein Vault — diese
+ * Seite kann auch ohne Login angesehen werden.
+ *
+ * Ein Klick auf "App öffnen" navigiert zu "/app", wo das eigentliche
+ * Vault-/Setup-Routing aus App.tsx übernimmt.
+ */
 export function LandingPage() {
   const [copied, setCopied] = useState(false)
   const t = useT()

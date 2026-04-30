@@ -1,24 +1,52 @@
 /**
- * PeerManager — manages WebRTC peer connections for all contacts.
+ * PeerManager — verwaltet WebRTC-Direktverbindungen zu allen Kontakten.
  *
- * Each contact gets at most one RTCPeerConnection + RTCDataChannel.
- * Signaling (SDP offer/answer, ICE candidates) goes through Nostr relays.
- * Once the data channel is open, messages flow directly P2P.
+ * Pro Kontakt höchstens eine RTCPeerConnection mit einem
+ * RTCDataChannel. Sobald der Datenkanal offen ist, fließen
+ * DM-Nachrichten direkt zwischen den Browsern — Relays sehen davon
+ * nichts mehr.
  *
- * If P2P fails or the peer is offline, falls back to Nostr relay delivery.
+ * Verbindungsaufbau:
+ *
+ *     ┌───────────┐                          ┌───────────┐
+ *     │ Alice     │ ── Offer  (via Nostr) ──►│ Bob       │
+ *     │           │ ◄─ Answer (via Nostr) ── │           │
+ *     │           │ ◄─── ICE-Kandidaten  ──► │           │
+ *     │           │                          │           │
+ *     │  RTCPC ◄────── direkter Datenkanal ─────► RTCPC  │
+ *     └───────────┘                          └───────────┘
+ *
+ * Das Signaling läuft über NIP-04-verschlüsselte Kind-25050-Events
+ * (siehe `SignalingChannel.ts`). Der eigentliche Nutzdatenkanal ist
+ * vom Browser aufgebaut und unabhängig von den Relays.
+ *
+ * Fällt P2P aus oder ist der Peer offline, läuft die Nachricht
+ * automatisch über den Relay-Pfad — siehe `publishDM` in `nostr.ts`.
  */
 
 import { getIceConfig } from './iceConfig'
 import type { PeerState, SignalMessage, DataMessage } from './types'
 import { saveLog } from '../storage'
 
-// ── Types ────────────────────────────────────────────────────────
+// ── Typen ────────────────────────────────────────────────────────
 
+/**
+ * Pro Peer halten wir einen Eintrag mit:
+ *   - pc:  die RTCPeerConnection vom Browser
+ *   - dc:  der zugehörige Datenkanal (kann initial null sein, wenn die
+ *          Gegenseite ihn erst erzeugt — siehe pc.ondatachannel)
+ *   - state: aktueller Zustand für die UI-Anzeige
+ *   - iceCandidateBuffer: ICE-Kandidaten, die ankommen, bevor die
+ *          Remote-Description gesetzt ist. Sie können nicht direkt
+ *          angewendet werden, weil RTCPeerConnection sonst wirft.
+ *   - makingOffer / ignoreOffer: Flags für "Perfect Negotiation",
+ *          siehe `handleOffer` weiter unten.
+ */
 interface PeerEntry {
   pc: RTCPeerConnection
   dc: RTCDataChannel | null
   state: PeerState
-  iceCandidateBuffer: RTCIceCandidateInit[] // Buffered until remote description is set
+  iceCandidateBuffer: RTCIceCandidateInit[]
   makingOffer: boolean
   ignoreOffer: boolean
 }
@@ -27,21 +55,29 @@ type OnStateChange = (pubkey: string, state: PeerState) => void
 type OnDataMessage = (pubkey: string, msg: DataMessage) => void
 type OnSignalOut = (signal: SignalMessage) => void
 
-// ── PeerManager ──────────────────────────────────────────────────
+// ── Modulstate ───────────────────────────────────────────────────
 
 let myPubkey: string | null = null
+/** pubkey → PeerEntry. Maximal ein Eintrag pro Kontakt. */
 const peers = new Map<string, PeerEntry>()
 
 let onStateChange: OnStateChange | null = null
 let onDataMessage: OnDataMessage | null = null
 let onSignalOut: OnSignalOut | null = null
 
-/** Initialize the PeerManager with the local identity */
+/** Initialisiert den PeerManager mit der eigenen Identität. */
 export function initPeerManager(pubkey: string): void {
   myPubkey = pubkey
 }
 
-/** Register callbacks */
+/**
+ * Registriert die drei Callbacks, über die der PeerManager mit der App
+ * kommuniziert:
+ *   - onStateChange: Verbindungszustand pro Peer (für UI-Indikator)
+ *   - onDataMessage: eingehende P2P-Nachrichten
+ *   - onSignalOut:   ausgehende Signale (Offer/Answer/ICE), die per
+ *                    Nostr an den Peer geschickt werden müssen
+ */
 export function setPeerCallbacks(cbs: {
   onStateChange?: OnStateChange
   onDataMessage?: OnDataMessage
@@ -52,25 +88,36 @@ export function setPeerCallbacks(cbs: {
   if (cbs.onSignalOut) onSignalOut = cbs.onSignalOut
 }
 
-/** Get current state of a peer connection */
+/** Aktueller Verbindungszustand eines Peers (UI-relevant). */
 export function getPeerState(pubkey: string): PeerState {
   return peers.get(pubkey)?.state ?? 'disconnected'
 }
 
-/** Check if a peer has an open data channel */
+/**
+ * Schnellprüfung, ob direktes P2P-Senden möglich ist.
+ * `dc.readyState === 'open'` ist die einzige sichere Bedingung —
+ * `connectionState === 'connected'` reicht nicht, weil der Datenkanal
+ * separat aufgehen muss.
+ */
 export function isPeerConnected(pubkey: string): boolean {
   const entry = peers.get(pubkey)
   return entry?.dc?.readyState === 'open'
 }
 
-// ── Connection Management ────────────────────────────────────────
+// ── Verbindungsverwaltung ────────────────────────────────────────
 
+/** Setzt den Status und meldet ihn an die UI weiter. */
 function updateState(pubkey: string, state: PeerState): void {
   const entry = peers.get(pubkey)
   if (entry) entry.state = state
   onStateChange?.(pubkey, state)
 }
 
+/**
+ * Legt eine frische RTCPeerConnection mit den aktuellen ICE-Settings
+ * an und verkabelt alle Lifecycle-Handler. Die eigentliche Logik (wer
+ * sendet das Offer, wer den Answer) liegt in connectToPeer/handleOffer.
+ */
 function createPeerEntry(pubkey: string): PeerEntry {
   const pc = new RTCPeerConnection(getIceConfig())
   const entry: PeerEntry = {
@@ -82,7 +129,9 @@ function createPeerEntry(pubkey: string): PeerEntry {
     ignoreOffer: false,
   }
 
-  // ── ICE candidates → send via Nostr signaling ──
+  // ── ICE-Kandidaten → über Nostr-Signaling senden ──
+  // Browser meldet hier potentielle Netzwerk-Adressen, die der andere
+  // Peer ausprobieren soll. Wir leiten jede einzelne sofort weiter.
   pc.onicecandidate = (e) => {
     if (e.candidate && myPubkey) {
       onSignalOut?.({
@@ -95,7 +144,7 @@ function createPeerEntry(pubkey: string): PeerEntry {
     }
   }
 
-  // ── Connection state changes ──
+  // ── Änderungen am Verbindungszustand ──
   pc.onconnectionstatechange = () => {
     const s = pc.connectionState
     if (s === 'connected') {
@@ -128,6 +177,17 @@ function createPeerEntry(pubkey: string): PeerEntry {
   return entry
 }
 
+/**
+ * Verkabelt einen frischen RTCDataChannel mit unseren Handlern.
+ *
+ * Wird auf zwei Wegen erreicht:
+ *   - Wir sind Anrufer und haben den Channel selbst erzeugt
+ *     (createDataChannel in connectToPeer).
+ *   - Wir sind Angerufener und der Browser feuert pc.ondatachannel,
+ *     weil die Gegenseite den Channel angelegt hat.
+ *
+ * In beiden Fällen müssen die Event-Handler einmal gesetzt werden.
+ */
 function setupDataChannel(pubkey: string, dc: RTCDataChannel): void {
   const entry = peers.get(pubkey)
   if (!entry) return
@@ -141,6 +201,9 @@ function setupDataChannel(pubkey: string, dc: RTCDataChannel): void {
 
   dc.onclose = () => {
     saveLog('webrtc', `Data channel closed with ${pubkey.slice(0, 8)}...`)
+    // Es kann passieren, dass der Channel kurz schließt und der
+    // ConnectionState immer noch 'connected' steht (Browser-Quirk).
+    // Wir markieren erst dann disconnected, wenn beides aus ist.
     if (entry.pc.connectionState !== 'connected') {
       updateState(pubkey, 'disconnected')
     }
@@ -160,6 +223,7 @@ function setupDataChannel(pubkey: string, dc: RTCDataChannel): void {
   }
 }
 
+/** Schließt PeerConnection + DataChannel und entfernt den Eintrag. */
 function cleanupPeer(pubkey: string): void {
   const entry = peers.get(pubkey)
   if (!entry) return
@@ -170,11 +234,19 @@ function cleanupPeer(pubkey: string): void {
   updateState(pubkey, 'disconnected')
 }
 
-// ── Initiate Connection (caller side) ────────────────────────────
+// ── Aktiver Verbindungsaufbau (Anrufer-Seite) ────────────────────
 
 /**
- * Start a P2P connection to a contact.
- * Creates an SDP offer and sends it via Nostr signaling.
+ * Startet eine P2P-Verbindung zu einem Kontakt.
+ *
+ *   1. Falls schon eine offene oder im Aufbau befindliche Verbindung
+ *      existiert, sofort zurück — kein Doppelaufbau.
+ *   2. Stale Connections (failed/closed) erst aufräumen.
+ *   3. Neue RTCPeerConnection anlegen, DataChannel erzeugen, Offer
+ *      bauen, lokale Description setzen, Offer übers Signaling senden.
+ *
+ * Der Rest (Answer empfangen, ICE austauschen) passiert event-basiert
+ * in handleSignal/handleAnswer/handleIceCandidate.
  */
 export async function connectToPeer(pubkey: string): Promise<void> {
   if (!myPubkey) return
@@ -219,11 +291,14 @@ export async function connectToPeer(pubkey: string): Promise<void> {
   }
 }
 
-// ── Handle Incoming Signals ──────────────────────────────────────
+// ── Eingehende Signale verarbeiten ───────────────────────────────
 
 /**
- * Process an incoming signaling message from a peer.
- * Implements "perfect negotiation" pattern to handle glare (simultaneous offers).
+ * Hauptverteiler für Signaling-Nachrichten von der Gegenseite.
+ *
+ * Implementiert das "Perfect Negotiation"-Muster, mit dem WebRTC-
+ * Verbindungen auch dann robust aufgebaut werden, wenn beide Peers
+ * gleichzeitig Offers schicken (sog. "glare").
  */
 export async function handleSignal(signal: SignalMessage): Promise<void> {
   if (!myPubkey) return
@@ -238,26 +313,35 @@ export async function handleSignal(signal: SignalMessage): Promise<void> {
   }
 }
 
+/**
+ * Verarbeitet ein eingehendes Offer.
+ *
+ * Glare-Behandlung: Wenn wir GERADE selbst ein Offer schicken oder
+ * unsere PC nicht im stable-State ist, müssen wir entscheiden, wer
+ * "nachgibt". Dazu vergleichen wir lexikografisch die beiden Pubkeys —
+ * derjenige mit dem kleineren Wert ist "polite" und rollt sein eigenes
+ * Offer zurück, der andere ignoriert das eingehende. So wird ohne
+ * Koordination eine eindeutige Reihenfolge etabliert.
+ */
 async function handleOffer(peerPubkey: string, payload: string): Promise<void> {
   if (!myPubkey) return
 
   let entry = peers.get(peerPubkey)
 
-  // Perfect negotiation: if we're also making an offer, the "polite" peer rolls back
-  // Polite = the one with the lower pubkey (deterministic, no coordination needed)
+  // Polite = wer den lexikografisch kleineren Pubkey hat
   const isPolite = myPubkey < peerPubkey
 
   if (entry?.makingOffer || entry?.pc.signalingState !== 'stable') {
     if (!isPolite) {
-      // We're impolite and already making an offer — ignore theirs
+      // Wir sind impolite und beschäftigt → ignorieren
       saveLog('webrtc', `Ignoring offer from ${peerPubkey.slice(0, 8)}... (glare, we're impolite)`)
       return
     }
-    // We're polite — roll back our offer and accept theirs
+    // Wir sind polite — rollen unser eigenes Offer zurück und nehmen das eingehende an
     saveLog('webrtc', `Rolling back our offer for ${peerPubkey.slice(0, 8)}... (glare, we're polite)`)
   }
 
-  // Create or reuse connection
+  // Frische PC bei Bedarf — wenn die alte tot ist oder es noch keine gibt
   if (!entry || entry.pc.connectionState === 'failed' || entry.pc.connectionState === 'closed') {
     if (entry) cleanupPeer(peerPubkey)
     entry = createPeerEntry(peerPubkey)
@@ -267,13 +351,14 @@ async function handleOffer(peerPubkey: string, payload: string): Promise<void> {
     const desc = JSON.parse(payload) as RTCSessionDescriptionInit
     await entry.pc.setRemoteDescription(desc)
 
-    // Flush buffered ICE candidates
+    // Gepufferte ICE-Kandidaten jetzt anwenden — wir hatten sie nicht
+    // direkt verarbeiten können, weil die remoteDescription noch fehlte.
     for (const candidate of entry.iceCandidateBuffer) {
       await entry.pc.addIceCandidate(candidate)
     }
     entry.iceCandidateBuffer = []
 
-    // Create and send answer
+    // Answer bauen und zurückschicken
     const answer = await entry.pc.createAnswer()
     await entry.pc.setLocalDescription(answer)
 
@@ -292,6 +377,7 @@ async function handleOffer(peerPubkey: string, payload: string): Promise<void> {
   }
 }
 
+/** Verarbeitet ein eingehendes Answer (auf unser Offer hin). */
 async function handleAnswer(peerPubkey: string, payload: string): Promise<void> {
   const entry = peers.get(peerPubkey)
   if (!entry) return
@@ -300,7 +386,7 @@ async function handleAnswer(peerPubkey: string, payload: string): Promise<void> 
     const desc = JSON.parse(payload) as RTCSessionDescriptionInit
     await entry.pc.setRemoteDescription(desc)
 
-    // Flush buffered ICE candidates
+    // Auch hier: ICE-Kandidaten, die vor dem Answer reinkamen, jetzt anwenden
     for (const candidate of entry.iceCandidateBuffer) {
       await entry.pc.addIceCandidate(candidate)
     }
@@ -312,6 +398,13 @@ async function handleAnswer(peerPubkey: string, payload: string): Promise<void> 
   }
 }
 
+/**
+ * Verarbeitet einen einzelnen ICE-Kandidaten der Gegenseite.
+ *
+ * Vor `setRemoteDescription` wirft `addIceCandidate` — daher puffern wir
+ * Kandidaten bis dahin. Nach setRemoteDescription werden alle gepufferten
+ * Kandidaten abgearbeitet (siehe handleOffer/handleAnswer).
+ */
 async function handleIceCandidate(peerPubkey: string, payload: string): Promise<void> {
   const entry = peers.get(peerPubkey)
   if (!entry) return
@@ -322,7 +415,6 @@ async function handleIceCandidate(peerPubkey: string, payload: string): Promise<
     if (entry.pc.remoteDescription) {
       await entry.pc.addIceCandidate(candidate)
     } else {
-      // Buffer until remote description is set
       entry.iceCandidateBuffer.push(candidate)
     }
   } catch (e) {
@@ -330,16 +422,19 @@ async function handleIceCandidate(peerPubkey: string, payload: string): Promise<
   }
 }
 
-// ── Send Message via P2P ─────────────────────────────────────────
+// ── Nachricht direkt P2P senden ──────────────────────────────────
 
 /**
- * Send a message via WebRTC data channel.
- * Returns true if sent successfully, false if not connected (use relay fallback).
+ * Versucht, eine Nachricht über den Datenkanal zu schicken.
+ *
+ * Liefert true bei Erfolg, false sonst — der Aufrufer (`publishDM` in
+ * nostr.ts) nutzt den false-Fall, um auf die Relay-Zustellung
+ * umzuschalten.
  */
 export function sendViaPeer(pubkey: string, msg: DataMessage): boolean {
   const entry = peers.get(pubkey)
   if (!entry || entry.dc?.readyState !== 'open') {
-    return false // Not connected — caller should use Nostr relay
+    return false
   }
 
   try {
@@ -353,17 +448,23 @@ export function sendViaPeer(pubkey: string, msg: DataMessage): boolean {
 
 // ── Lifecycle ────────────────────────────────────────────────────
 
-/** Disconnect all peers (called on logout or cleanup) */
+/** Trennt sämtliche Verbindungen (bei Logout oder Cleanup). */
 export function disconnectAllPeers(): void {
   peers.forEach((_, pubkey) => cleanupPeer(pubkey))
   peers.clear()
   myPubkey = null
 }
 
-/** Attempt P2P connections to all known contacts */
+/**
+ * Versucht, zu allen bekannten Kontakten eine P2P-Verbindung
+ * aufzubauen. Existierende oder gerade entstehende Verbindungen
+ * werden nicht erneut initiiert.
+ *
+ * Wird vom Hook beim Start (mit Verzögerung, damit Relays vorher
+ * verbunden sind) und bei jedem Kontakt-Update aufgerufen.
+ */
 export function connectToContacts(contactPubkeys: string[]): void {
   for (const pubkey of contactPubkeys) {
-    // Only connect if not already connected
     if (!isPeerConnected(pubkey) && getPeerState(pubkey) !== 'connecting') {
       connectToPeer(pubkey).catch(e => {
         saveLog('webrtc-error', `Failed to initiate connection to ${pubkey.slice(0, 8)}...: ${String(e)}`)

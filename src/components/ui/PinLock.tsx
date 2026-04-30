@@ -2,7 +2,27 @@ import { useState, useRef, useEffect } from 'react'
 import { isVaultActive, initVault, unlockVault } from '../../lib/vault'
 import { loadDecryptedCache, migrateToVault, hasPlaintextData } from '../../lib/storage'
 
-// ── Types ────────────────────────────────────────────────────────
+/**
+ * PinLock & PinSetup — Vault-Gate-UI.
+ *
+ * Diese Datei exportiert zwei Komponenten, die in unterschiedlichen
+ * Phasen der App-Phasenmaschine (siehe App.tsx) gemountet werden:
+ *
+ *   • PinLock     — bestehenden Vault entsperren (User kennt seinen PIN)
+ *   • PinSetup    — neuen Vault anlegen (PIN zweimal eingeben, Bestätigung)
+ *
+ * Außerdem die geteilte Lockout-Logik:
+ *   • exponentielles Lockout nach falschen Versuchen (60 s → 5 min →
+ *     15 min → 1 h → 6 h → 24 h)
+ *   • `isWeakPin()` lehnt offensichtlich schwache PINs ab (4444, 1234,
+ *     2580, …) — exportiert für die Tests.
+ *
+ * Wichtig: das Lockout ist eine UI-seitige Hürde, kein
+ * kryptografischer Schutz. Echte Sicherheit gegen Brute Force bringt
+ * PBKDF2-600k im Vault selbst (siehe vault.ts).
+ */
+
+// ── Typen ────────────────────────────────────────────────────────
 
 interface PinLockProps {
   /** Called after successful vault unlock or setup, with hydration done */

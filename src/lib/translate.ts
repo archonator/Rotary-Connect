@@ -1,9 +1,29 @@
+/**
+ * Auto-Übersetzungs-Schicht.
+ *
+ * Wird auf eingehende Textnachrichten angewendet, NACHDEM sie
+ * NIP-04/NIP-17-entschlüsselt wurden. Das heißt: der Klartext liegt
+ * im Browser des Empfängers vor, bevor irgendetwas an einen
+ * Übersetzungs-Provider gehen könnte. Damit die Datenschutz-Versprechen
+ * eingehalten werden können, gibt es zwei Provider:
+ *
+ *   1. Chrome AI Translation API (Chrome 127+) — läuft komplett offline
+ *      auf dem Gerät, kein Netzwerk-Call. Erste Wahl.
+ *   2. MyMemory (kostenlos, kein API-Key) — Fallback, schickt den Text
+ *      an einen externen Server. Standardmäßig AUS, der User muss
+ *      "Externe Übersetzung erlauben" in den Einstellungen
+ *      aktivieren, sonst wird MyMemory nie befragt.
+ *
+ * Resultate werden pro (Text, Zielsprache) in localStorage gecacht,
+ * damit erneutes Anzeigen derselben Nachricht keinen API-Call kostet.
+ */
+
 export interface TranslationResult {
-  text: string
-  from: string
+  text: string  // übersetzter Text (oder das Original, falls keine Übersetzung möglich)
+  from: string  // erkannte Quellsprache (BCP-47-Basis: "en", "de", "ru", …)
 }
 
-// Human-readable language names for UI display
+/** Anzeigetexte für Sprachen — fallen zurück auf den ISO-Code in Großbuchstaben. */
 const LANG_NAMES: Record<string, string> = {
   de: 'Deutsch', en: 'English', ru: 'Русский',
   fr: 'Français', es: 'Español', it: 'Italiano',
@@ -16,7 +36,11 @@ export function getLangName(code: string): string {
   return LANG_NAMES[code] || code.toUpperCase()
 }
 
-// djb2 hash for cache keys — fast, no crypto needed
+/**
+ * djb2-Hash für Cache-Keys. Bewusst kein SHA-256: für die Indexierung
+ * im localStorage reicht ein 32-bit-Hash, und djb2 ist synchron + ohne
+ * WebCrypto-Aufwand.
+ */
 function hashText(text: string): number {
   let hash = 5381
   for (let i = 0; i < text.length; i++) {
@@ -60,17 +84,23 @@ async function detectLang(text: string): Promise<string> {
     }
   } catch { /* fall through */ }
 
-  // Script heuristics as fallback
-  if (/[\u0400-\u04FF]/.test(text)) return /[іїєґ]/.test(text) ? 'uk' : 'ru'
-  if (/[\u4E00-\u9FFF]/.test(text)) return 'zh'
-  if (/[\u3040-\u30FF]/.test(text)) return 'ja'
-  if (/[\uAC00-\uD7AF]/.test(text)) return 'ko'
-  if (/[\u0600-\u06FF]/.test(text)) return 'ar'
-  return 'en'
+  // Skript-Heuristik als Fallback. Reicht, um zu erkennen, ob sich
+  // eine Übersetzung überhaupt lohnt — die exakte Sprache liefert dann
+  // ggf. der Übersetzungs-Provider.
+  if (/[\u0400-\u04FF]/.test(text)) return /[іїєґ]/.test(text) ? 'uk' : 'ru' // Kyrillisch → ru/uk
+  if (/[\u4E00-\u9FFF]/.test(text)) return 'zh' // Han-Zeichen → Chinesisch
+  if (/[\u3040-\u30FF]/.test(text)) return 'ja' // Hiragana/Katakana → Japanisch
+  if (/[\uAC00-\uD7AF]/.test(text)) return 'ko' // Hangul → Koreanisch
+  if (/[\u0600-\u06FF]/.test(text)) return 'ar' // Arabisch
+  return 'en' // Default: Englisch
 }
 
-// ── Translation providers ─────────────────────────────────────────────────────
+// ── Übersetzungs-Provider ─────────────────────────────────────────────────────
 
+/**
+ * Chrome AI Translation API (Chrome 127+, offline).
+ * Wenn nicht verfügbar oder das Sprachpaar nicht unterstützt → null.
+ */
 async function translateChromeAI(text: string, from: string, to: string): Promise<string | null> {
   try {
     const ai = (window as any).ai
@@ -82,6 +112,15 @@ async function translateChromeAI(text: string, from: string, to: string): Promis
   } catch { return null }
 }
 
+/**
+ * MyMemory Public API als Fallback.
+ *
+ * Schickt den Text (auf 500 Zeichen gekürzt) an
+ * api.mymemory.translated.net. 8-Sekunden-Timeout, damit ein träge
+ * antwortender Server die UI nicht ewig blockiert. Wird nur
+ * aufgerufen, wenn der Aufrufer von `translate()` `allowExternal=true`
+ * setzt — also der User in den Einstellungen explizit zugestimmt hat.
+ */
 async function translateMyMemory(text: string, from: string, to: string): Promise<string | null> {
   try {
     const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text.slice(0, 500))}&langpair=${from}|${to}`
@@ -96,6 +135,19 @@ async function translateMyMemory(text: string, from: string, to: string): Promis
 
 // ── Public API ────────────────────────────────────────────────────────────────
 
+/**
+ * Übersetzt einen Text in die Zielsprache.
+ *
+ * Provider-Reihenfolge:
+ *   1. Cache-Treffer? → sofort zurück.
+ *   2. Spracherkennung. Wenn die erkannte Sprache mit der Zielsprache
+ *      übereinstimmt → keine Übersetzung nötig, Original zurück.
+ *   3. Chrome AI (offline). Falls null:
+ *   4. MyMemory (extern), aber nur wenn `allowExternal === true`.
+ *   5. Letzte Linie: Originaltext + erkannte Sprache.
+ *
+ * Cached wird grundsätzlich, sobald eine Übersetzung erfolgreich war.
+ */
 export async function translate(text: string, targetLang: string, allowExternal = true): Promise<TranslationResult> {
   if (!text.trim()) return { text, from: targetLang }
 
@@ -108,7 +160,7 @@ export async function translate(text: string, targetLang: string, allowExternal 
 
   if (fromBase === toBase) return { text, from: fromBase }
 
-  // Try Chrome AI first (offline & private), then MyMemory only if allowed
+  // Erst Chrome AI (offline + privat), dann MyMemory falls erlaubt
   let translated = await translateChromeAI(text, fromBase, toBase)
   if (!translated && allowExternal) {
     translated = await translateMyMemory(text, fromBase, toBase)

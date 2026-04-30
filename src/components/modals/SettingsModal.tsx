@@ -9,6 +9,24 @@ import type { WebRTCMode } from '../../lib/webrtc'
 import { LanguageToggle } from '../ui/LanguageToggle'
 import { ConfirmDialog } from '../ui/ConfirmDialog'
 
+/**
+ * SettingsModal — zentrale Stelle für alle Einstellungen.
+ *
+ * Sektionen (von oben nach unten):
+ *
+ *   • Anzeigename — wird in Räumen mit Nachrichten verschickt
+ *   • Public Key (npub) — kopierbar, zum Weitergeben an Kontakte
+ *   • Secret Key (nsec) — versteckt, nur nach explizitem "Anzeigen";
+ *                          BACKUP-WARNUNG, weil Verlust = Daten weg
+ *   • Schlüssel rotieren — öffnet KeyMigrationModal
+ *   • Auto-Übersetzung — Hauptschalter + Sub-Toggle für externen Fallback
+ *   • WebRTC-Modus — Standard (STUN) vs. Privat (TURN) mit Credentials
+ *   • Vault-PIN ändern — Old-PIN + zweimal New-PIN
+ *   • Sprache, Logout, Debug-Logs
+ *
+ * Die LogViewer-Subkomponente ist hier integriert, weil sie nur als
+ * Sub-Modal von Settings aufgerufen wird — kein separates Modal-File.
+ */
 export function SettingsModal() {
   const identity = useStore(s => s.identity)
   const updateName = useStore(s => s.updateName)

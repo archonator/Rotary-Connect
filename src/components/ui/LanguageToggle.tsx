@@ -1,3 +1,12 @@
+/**
+ * LanguageToggle — DE/EN-Schalter als hübscher iOS-style-Toggle.
+ *
+ * Wird sowohl im Setup-Screen (vor dem Login) als auch in den
+ * Settings angezeigt. Ändert nur den Store-State, nicht das HTML-
+ * `lang`-Attribut — die App-Texte werden über `useT` reaktiv neu
+ * gerendert.
+ */
+
 import { useStore } from '../../store/useStore'
 
 export function LanguageToggle() {

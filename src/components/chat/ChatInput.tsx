@@ -8,6 +8,23 @@ import { EmojiPicker } from './EmojiPicker'
 import { ImagePreview } from './ImagePreview'
 import { TtlPicker } from './TtlPicker'
 
+/**
+ * ChatInput — Eingabefeld am unteren Rand mit allen Nebenfunktionen.
+ *
+ * Enthält:
+ *   • Bildanhang-Button (öffnet ImagePreview-Modal)
+ *   • Standort-Button (Geolocation API → JSON {lat,lng})
+ *   • TTL-Picker (Selbstlösch-Zeit auswählen)
+ *   • Auto-resizenden Textarea mit Emoji-Picker
+ *   • Send-Button (Enter ohne Shift = senden)
+ *
+ * Sendelogik (publishMessage):
+ *   1. Lokale Kopie der Nachricht direkt im Store ablegen (Status:
+ *      "sending"), damit die UI sofort reagiert.
+ *   2. Wenn offline oder ohne Relay-Verbindung → Offline-Queue.
+ *   3. Sonst publishDM oder publishRoomMessage.
+ *   4. Status auf "sent" oder "failed" aktualisieren.
+ */
 export function ChatInput() {
   const activeChat = useStore(s => s.activeChat)
   const identity = useStore(s => s.identity)

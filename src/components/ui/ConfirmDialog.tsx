@@ -1,5 +1,20 @@
 import { useEffect, useRef } from 'react'
 
+/**
+ * ConfirmDialog — wiederverwendbarer Bestätigungsdialog.
+ *
+ * Wird für destruktive Aktionen (Logout, Kontakt löschen,
+ * Schlüssel rotieren) eingesetzt. Eigenschaften:
+ *
+ *   • Focus-Trap: Tab-Navigation läuft im Kreis innerhalb der
+ *     beiden Buttons — der Nutzer kann nicht versehentlich auf
+ *     das darunterliegende UI klicken.
+ *   • Escape schließt den Dialog (entspricht "Abbrechen").
+ *   • Initialer Fokus auf dem Confirm-Button — das spart einen
+ *     Tabbing-Schritt für User, die "OK" wollen.
+ *   • `danger`-Flag färbt den Confirm-Button rot.
+ */
+
 interface ConfirmDialogProps {
   title: string
   message: string

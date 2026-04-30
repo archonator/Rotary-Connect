@@ -14,18 +14,46 @@ import { AppSplash } from './components/ui/AppSplash'
 import { PwaBanner } from './components/ui/PwaBanner'
 import { PinLock, PinSetup, getVaultGateMode } from './components/ui/PinLock'
 
+/**
+ * Die fünf Phasen, die App.tsx vom Start bis zum Ready-Zustand durchläuft.
+ *
+ *   splash             — Initialer Splashscreen, ~2.8 s
+ *   vault-unlock       — Vorhandener Vault, User muss PIN eingeben
+ *   vault-setup        — Klartext-Daten vorhanden (Pre-Vault-User), PIN setzen + migrieren
+ *   setup              — Frische Installation, Identität anlegen oder importieren
+ *   pin-after-setup    — Direkt nach setup einen PIN setzen, damit die frische Identität
+ *                        auch verschlüsselt persistiert wird
+ *   ready              — Hauptoberfläche (Sidebar + Chat)
+ *
+ * In welche Phase wir nach dem Splash gehen, entscheidet
+ * `getVaultGateMode()` in `PinLock.tsx`.
+ */
 type AppPhase = 'splash' | 'vault-unlock' | 'vault-setup' | 'setup' | 'pin-after-setup' | 'ready'
 
+/**
+ * Wurzelkomponente der Messenger-App.
+ *
+ * Verantwortlich für:
+ *   • Phasen-Routing (Splash → Vault-Setup/Unlock → Identitäts-Setup → Ready)
+ *   • Mounten der globalen Hooks (Relays + WebRTC, Ephemeral-Cleanup)
+ *   • Auswahl, welche Modale gerade offen sind
+ *
+ * Die einzelnen UI-Bausteine (Sidebar, ChatArea, Modale) leben in
+ * eigenen Komponenten unter src/components/.
+ */
 export function App() {
   const identity = useStore(s => s.identity)
   const hydrate = useStore(s => s.hydrate)
   const openModal = useStore(s => s.openModal)
   const [phase, setPhase] = useState<AppPhase>('splash')
 
+  // Diese Hooks sind nur in der "ready"-Phase nötig, aber React darf
+  // Hooks nicht conditional aufrufen — also einfach immer mounten.
+  // Die Hooks selbst checken intern, ob `identity` gesetzt ist.
   useNostrRelays()
   useEphemeralCleanup()
 
-  // Apply brand colour to pwa-install dialog
+  // Markenfarbe in den (Custom-Element-)PWA-Install-Dialog reichen.
   useEffect(() => {
     const el = document.querySelector('pwa-install') as any
     if (el) el.styles = { '--tint-color': '#F7A81B' }

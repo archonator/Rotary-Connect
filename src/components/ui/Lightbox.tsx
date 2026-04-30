@@ -1,3 +1,11 @@
+/**
+ * Lightbox — Vollbildanzeige für Bildnachrichten.
+ *
+ * Click auf die Overlay schließt sie wieder. Wenn `src === null`
+ * wird gar nichts gerendert — kein leeres Overlay-Layer in DOM,
+ * weniger Performance-Overhead.
+ */
+
 interface LightboxProps {
   src: string | null
   onClose: () => void

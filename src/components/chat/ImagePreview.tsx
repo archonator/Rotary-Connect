@@ -3,14 +3,31 @@ import { X, Send, Shield } from 'lucide-react'
 import { useT } from '../../hooks/useT'
 import { MAX_IMAGE_SIZE } from '../../lib/constants'
 
+/**
+ * ImagePreview — Bestätigungs-Modal nach Bildauswahl.
+ *
+ * Workflow:
+ *   1. User wählt eine Datei im ChatInput aus.
+ *   2. Wir zeigen sofort eine Vorschau (Original-Image über
+ *      Object-URL, schnell weil keine Konvertierung nötig).
+ *   3. Im Hintergrund läuft compressImage(): Skalieren auf max.
+ *      800 px Kante, JPEG-Quality iterativ reduzieren, bis das
+ *      Base64-Resultat unter MAX_IMAGE_SIZE (500 KB) liegt.
+ *   4. User klickt "Senden" → onSend(dataUrl) wird aufgerufen,
+ *      die Nachricht geht durch den normalen DM/Raum-Flow.
+ *
+ * Größenkalkulation: Base64 hat ~33% Overhead (3 Bytes → 4 Zeichen).
+ * Wir zeigen daher die geschätzte tatsächliche Größe in der UI an.
+ */
+
 interface ImagePreviewProps {
   file: File
   onSend: (dataUrl: string) => void
   onCancel: () => void
 }
 
-const TARGET_SIZE = MAX_IMAGE_SIZE // use centralized constant for max base64 output size
-const MAX_DIMENSION = 800  // max width/height in pixels
+const TARGET_SIZE = MAX_IMAGE_SIZE // zentrale Konstante (500 KB)
+const MAX_DIMENSION = 800          // max. Kantenlänge in Pixeln
 
 function compressImage(file: File): Promise<string> {
   return new Promise((resolve, reject) => {

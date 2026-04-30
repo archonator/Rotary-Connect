@@ -6,6 +6,20 @@ import { Avatar } from '../ui/Avatar'
 import { lastMsgPreview } from '../../lib/utils'
 import { ConfirmDialog } from '../ui/ConfirmDialog'
 
+/**
+ * ChatList — die Liste der Chats (Direktnachrichten + Gruppenräume).
+ *
+ * Pro Eintrag:
+ *   • Avatar (Initiale, mit Marker für Gruppen)
+ *   • Name + Vorschau der letzten Nachricht
+ *   • Ungelesen-Badge
+ *   • Drei-Punkte-Menü mit Umbenennen / Löschen (nur bei Kontakten —
+ *     Räume haben kein Lösch-Menü, weil Räume durch ihren Hash
+ *     definiert und damit nicht "kaputtmachbar" sind)
+ *
+ * Bei leerer Liste wird ein Empty-State mit zwei Call-to-Action-
+ * Buttons gezeigt ("Einladen" und "Gruppe erstellen").
+ */
 export function ChatList() {
   const contacts = useStore(s => s.contacts)
   const rooms = useStore(s => s.rooms)

@@ -5,6 +5,26 @@ import { useT } from '../../hooks/useT'
 import { lookupInviteCode, resubscribeAll, connectAllRelays, disconnectAllRelays } from '../../lib/nostr'
 import { LanguageToggle } from '../ui/LanguageToggle'
 
+/**
+ * SetupScreen — der Erst-Setup-Flow.
+ *
+ * Drei Möglichkeiten, in die App zu gelangen:
+ *
+ *   1. **Einladungscode eingeben** ("Ich habe einen Code")
+ *      Der User gibt einen 6-stelligen Code ein, den ihm jemand
+ *      anders aus der App geschickt hat. Die App fragt das Relay
+ *      an, holt sich den Inviter-Pubkey + Namen und legt nach
+ *      Eingabe des eigenen Namens Identität + erste Verbindung an.
+ *
+ *   2. **Neuen Account anlegen** (Standardpfad)
+ *      Einfach einen Namen wählen → frisches Schlüsselpaar wird
+ *      erzeugt, der User landet im PIN-Setup.
+ *
+ *   3. **Account wiederherstellen** (Sekundärpfad, eingeklappt)
+ *      Über `nsec…`-String einen bestehenden Schlüssel
+ *      importieren. Vorhandene lokale Daten werden in der Regel
+ *      zerstört, weil die Identität sich ändert.
+ */
 type LookupState = 'idle' | 'searching' | 'found' | 'not_found'
 
 interface SetupScreenProps {

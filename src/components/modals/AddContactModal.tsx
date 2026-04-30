@@ -6,6 +6,27 @@ import { publishInviteCode, lookupInviteCode, resubscribeAll } from '../../lib/n
 import { decodeNpub } from '../../lib/crypto'
 import { INVITE_CODE_DURATION } from '../../lib/constants'
 
+/**
+ * AddContactModal — modaler Dialog zum Hinzufügen eines Kontakts.
+ *
+ * Vier Sichten ("View"), per State-Machine umgeschaltet:
+ *
+ *   choose  — Auswahlmenü mit drei Optionen
+ *   invite  — Eigenen 6-stelligen Einladungscode generieren und
+ *             10 Minuten lang als Kind-10420-Event auf den Relays
+ *             halten. Anzeigen + Kopieren.
+ *   join    — 6-stelligen Code des Anderen eingeben → Lookup auf
+ *             Relays → falls gefunden, Kontakt mit Inviter-Pubkey
+ *             anlegen
+ *   pubkey  — Manueller Modus: npub direkt einfügen + Namen
+ *             vergeben (für Power-User oder wenn der Einladungscode
+ *             abgelaufen ist)
+ *
+ * Status der Suche im invite-Lookup ist eine separate Mini-Statemachine
+ * (idle → searching → found/not_found), damit die UI passende Texte
+ * + Animationen anzeigen kann.
+ */
+
 type View = 'choose' | 'invite' | 'join' | 'pubkey'
 type LookupState = 'idle' | 'searching' | 'found' | 'not_found'
 

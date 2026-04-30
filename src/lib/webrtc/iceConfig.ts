@@ -1,9 +1,24 @@
 /**
- * ICE server configuration for WebRTC NAT traversal.
+ * ICE-Server-Konfiguration für WebRTC NAT-Traversal.
  *
- * Two modes:
- *   "standard" — STUN only, direct P2P. Fast, but peers see each other's IP.
- *   "private"  — TURN relay only. Hides IPs, but needs a TURN server configured.
+ * WebRTC braucht "Hilfsserver" (ICE-Server), um zwei Browser hinter
+ * verschiedenen NATs/Firewalls zueinander finden zu lassen:
+ *
+ *   • STUN — sagt dem Browser nur, wie seine eigene öffentliche IP
+ *     aussieht. Der eigentliche Datenstrom läuft trotzdem direkt.
+ *     Quasi gratis (Google/Mozilla bieten kostenlose STUN-Server),
+ *     aber funktioniert nicht durch alle NATs (z. B. nicht durch
+ *     symmetrisches NAT).
+ *
+ *   • TURN — leitet den ganzen Verkehr über einen Vermittlungsserver.
+ *     Funktioniert in fast jedem Netzwerk, kostet aber Bandbreite und
+ *     erfordert einen eigenen oder bezahlten TURN-Server.
+ *
+ * Modi:
+ *   "standard" — Nur STUN, direkter P2P-Versuch. Schnell, aber Peers
+ *                sehen die IP-Adresse des anderen.
+ *   "private"  — Nur TURN-Relay. IPs bleiben verborgen, erfordert
+ *                aber einen vom Nutzer konfigurierten TURN-Server.
  */
 
 export type WebRTCMode = 'standard' | 'private'
@@ -14,14 +29,14 @@ export interface TurnConfig {
   credential: string
 }
 
-// ── localStorage keys (non-sensitive settings, not encrypted) ────
+// ── localStorage-Keys (nicht-sensible Einstellungen, kein Vault) ─
 
 const MODE_KEY = 'alina-webrtc-mode'
 const TURN_URL_KEY = 'alina-turn-url'
 const TURN_USER_KEY = 'alina-turn-user'
 const TURN_PASS_KEY = 'alina-turn-pass'
 
-// ── Read/write settings ──────────────────────────────────────────
+// ── Lesen/Schreiben der Einstellungen ────────────────────────────
 
 export function getWebRTCMode(): WebRTCMode {
   return (localStorage.getItem(MODE_KEY) as WebRTCMode) || 'standard'
@@ -45,8 +60,13 @@ export function setTurnConfig(config: TurnConfig): void {
   localStorage.setItem(TURN_PASS_KEY, config.credential)
 }
 
-// ── Build ICE configuration ──────────────────────────────────────
+// ── ICE-Konfiguration zusammenbauen ──────────────────────────────
 
+/**
+ * Liste der STUN-Server, die wir standardmäßig verwenden.
+ * Mehrere Anbieter (Google + Mozilla), damit ein Ausfall nicht die
+ * ganze NAT-Erkennung blockiert.
+ */
 const STUN_SERVERS: RTCIceServer[] = [
   { urls: 'stun:stun.l.google.com:19302' },
   { urls: 'stun:stun1.l.google.com:19302' },
@@ -54,8 +74,9 @@ const STUN_SERVERS: RTCIceServer[] = [
 ]
 
 /**
- * Build the active ICE configuration based on current settings.
- * Call this when creating new peer connections.
+ * Baut die aktuelle ICE-Konfiguration basierend auf Modus und TURN-
+ * Einstellungen zusammen. Wird beim Erzeugen jeder neuen
+ * RTCPeerConnection aufgerufen.
  */
 export function getIceConfig(): RTCConfiguration {
   const mode = getWebRTCMode()
@@ -74,9 +95,10 @@ export function getIceConfig(): RTCConfiguration {
 
   return {
     iceServers,
-    iceCandidatePoolSize: 2,
-    // In private mode, only use TURN relay — never direct P2P
-    // This hides both peers' IP addresses from each other
+    iceCandidatePoolSize: 2, // sammelt vorab 2 Kandidaten, beschleunigt Setup
+    // Im Privacy-Modus zwingen wir TURN-only ("relay"), sodass weder
+    // direkte P2P-Adressen noch reflexive STUN-Adressen ausgetauscht
+    // werden. Die IPs der Peers bleiben füreinander unsichtbar.
     ...(mode === 'private' && hasTurn ? { iceTransportPolicy: 'relay' } : {}),
   }
 }

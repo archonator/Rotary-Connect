@@ -2,9 +2,21 @@ import { useState } from 'react'
 import { Timer, TimerOff } from 'lucide-react'
 import { useT } from '../../hooks/useT'
 
+/**
+ * TtlPicker — Dropdown zum Auswählen der Lebenszeit einer Nachricht.
+ *
+ * Wenn der User eine TTL ungleich 0 wählt, wandert der Wert in das
+ * `ttl`-Feld der gesendeten Nachricht. Beim Empfänger wird daraus
+ * `expiresAt = receivedAt + ttl*1000` berechnet — die Nachricht
+ * verschwindet anschließend client-side beim 1-Sekunden-Tick des
+ * `useEphemeralCleanup`-Hooks.
+ *
+ * 0 = keine TTL (Standard).
+ */
+
 export interface TtlOption {
   label: string
-  seconds: number // 0 = off
+  seconds: number // 0 = aus
 }
 
 interface TtlPickerProps {

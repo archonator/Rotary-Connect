@@ -2,8 +2,26 @@ import { useState, useEffect } from 'react'
 import { Download, X } from 'lucide-react'
 import { useT } from '../../hooks/useT'
 
+/**
+ * PwaBanner — diskreter Banner, der zur App-Installation einlädt.
+ *
+ * Erscheint nur, wenn:
+ *   • die App NICHT schon als PWA installiert ist (display-mode oder
+ *     iOS-spezifisches navigator.standalone),
+ *   • der Nutzer den Banner in dieser Session NICHT bereits weggeklickt
+ *     hat (sessionStorage-Flag),
+ *   • und nach einem kurzen Delay von 2 s, damit er beim ersten
+ *     Render nicht aufpoppt.
+ *
+ * Auf Browsern, die `beforeinstallprompt` feuern (Chrome, Edge),
+ * ruft "Installieren" den nativen Dialog auf. Auf Safari ist der
+ * Knopf nur ein Hinweis — die eigentliche Installation muss der User
+ * über Teilen → Zum Home-Bildschirm machen.
+ */
+
 const DISMISSED_KEY = 'alina-pwa-dismissed'
 
+/** True, wenn die App bereits als PWA läuft (Standalone-Modus). */
 function isStandalone(): boolean {
   return window.matchMedia('(display-mode: standalone)').matches
     || (navigator as any).standalone === true

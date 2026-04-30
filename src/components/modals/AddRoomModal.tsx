@@ -5,6 +5,21 @@ import { useT } from '../../hooks/useT'
 import { hashRoomName } from '../../lib/crypto'
 import { resubscribeAll, publishRoomPresence } from '../../lib/nostr'
 
+/**
+ * AddRoomModal — modaler Dialog zum Anlegen eines Gruppenraums.
+ *
+ * Zwei Sichten:
+ *   create — Eingabefeld für den Raumnamen. Nach Submit wird der
+ *            Hash gebildet, der Raum lokal angelegt, eine Presence
+ *            gepostet und alle Relay-Subscriptions aktualisiert.
+ *   share  — Bestätigung mit dem Raumnamen zum Kopieren / Teilen.
+ *            Andere User geben denselben Namen ein und landen
+ *            automatisch im selben Chat (Hash ist deterministisch).
+ *
+ * Wichtig: Räume haben weder Owner noch Eintritts-Kontrolle —
+ * wer den Namen kennt, ist drin. Das ist Designentscheidung, kein Bug.
+ */
+
 type View = 'create' | 'share'
 
 export function AddRoomModal() {

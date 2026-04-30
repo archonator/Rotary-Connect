@@ -1,3 +1,12 @@
+/**
+ * EmojiPicker — minimalistischer Emoji-Picker für ChatInput.
+ *
+ * Zeigt eine fixe Liste von 30 Emojis aus `lib/constants.ts`.
+ * Bewusst keine externe Lib (kein Twemoji, kein heavy Picker) —
+ * die ~1 KB an Konstanten reichen für 95 % der typischen Nutzung
+ * und sparen massiv Bundle-Size.
+ */
+
 import { EMOJIS } from '../../lib/constants'
 
 interface EmojiPickerProps {

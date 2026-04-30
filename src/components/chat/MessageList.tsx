@@ -5,6 +5,23 @@ import { MessageBubble } from './MessageBubble'
 import { publishDM, publishRoomMessage } from '../../lib/nostr'
 import type { Message } from '../../store/useStore'
 
+/**
+ * MessageList — der scrollbare Block mit allen Nachrichten des
+ * aktiven Chats.
+ *
+ * Wichtige Details:
+ *   • Auto-Scroll-Heuristik: Wenn der User schon nahe am unteren
+ *     Rand war (innerhalb 80 px), springt der Container bei einer
+ *     neuen Nachricht nach unten. Andernfalls bleibt die Scroll-
+ *     Position erhalten — wer alte Nachrichten liest, wird nicht
+ *     ständig nach unten "geklaut".
+ *   • Beim Wechsel des Chats wird immer auf Bottom gesnappt.
+ *   • Retry-Logik: gescheiterte eigene Nachrichten haben einen
+ *     Retry-Knopf in der Bubble; der Handler hier setzt den Status
+ *     auf "sending", versucht erneut zu publishen, und schreibt
+ *     entsprechend "sent" oder "failed" zurück.
+ */
+
 interface MessageListProps {
   onImageClick: (src: string) => void
 }

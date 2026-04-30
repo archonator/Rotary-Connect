@@ -1,30 +1,76 @@
 /**
- * Vault — Two-layer AES-256-GCM encryption for localStorage
+ * Vault — lokale "at-rest"-Verschlüsselung für sensible localStorage-Werte.
  *
- * Architecture:
- *   PIN  ->  PBKDF2 (600k iterations)  ->  KEK (Key Encryption Key)
- *   KEK  encrypts  ->  DEK (Data Encryption Key, random 256-bit)
- *   DEK  encrypts  ->  all sensitive localStorage data
+ * Problemstellung
+ * ───────────────
+ *   Der private Nostr-Schlüssel und die Chat-History liegen in
+ *   localStorage. Wer auch nur kurz Zugriff auf das Gerät hat (oder
+ *   ein Add-on / Browser-Plugin mit DOM-Zugriff), könnte sie sonst
+ *   einfach auslesen.
  *
- * The DEK is imported as a **non-extractable** CryptoKey.
- * Even with XSS, an attacker cannot read the DEK — only use it
- * while the vault is open in the current browser context.
+ * Lösung: zweistufige Verschlüsselung mit AES-256-GCM
+ * ───────────────────────────────────────────────────
  *
- * PIN change only re-wraps the DEK with a new KEK.
- * No data re-encryption needed.
+ *     PIN  ──┐
+ *            ├── PBKDF2 (600 000 Iterationen) ──►  KEK
+ *     Salt ──┘                                       │
+ *                                                    │ AES-GCM
+ *                                                    ▼
+ *                                                   DEK  (256-bit, zufällig)
+ *                                                    │
+ *                                                    │ AES-GCM
+ *                                                    ▼
+ *                                  jeder einzelne Wert in localStorage
+ *
+ *   • KEK ("Key Encryption Key") = aus dem PIN abgeleitet. Existiert
+ *     nur kurz im Speicher beim Unlock; wird sofort wieder verworfen.
+ *   • DEK ("Data Encryption Key") = wird einmal bei Vault-Anlage
+ *     gewürfelt, vom KEK eingewickelt persistiert und beim Unlock als
+ *     **non-extractable** WebCrypto-Key in den Speicher geladen. Ein
+ *     Angreifer mit XSS kann den DEK NICHT auslesen — nur benutzen
+ *     solange der Tab offen ist.
+ *
+ * Konsequenzen
+ * ────────────
+ *   • PIN-Wechsel = nur den DEK mit neuem KEK neu einwickeln.
+ *     Die eigentlichen Daten müssen nicht erneut verschlüsselt werden.
+ *   • Vergessener PIN = Daten unwiederbringlich verloren. Es gibt
+ *     bewusst keine Backdoor / Recovery — sonst wäre der ganze
+ *     Aufwand sinnlos.
+ *   • Das Lockout in `PinLock.tsx` (X falsche PINs → Wartezeit) ist
+ *     nur eine UI-Hürde. Der eigentliche Schutz ist PBKDF2-600k:
+ *     selbst mit modernen GPUs sind 4-stellige PINs in spürbarer Zeit
+ *     durchprobierbar, längere PINs (6+ Ziffern oder Wörter) sind
+ *     praktisch unangreifbar.
  */
 
-const VAULT_SALT = 'alina_vault_salt'
-const VAULT_DEK = 'alina_vault_dek'
-const VAULT_VERIFY = 'alina_vault_verify'
+const VAULT_SALT = 'alina_vault_salt'   // localStorage-Key für das Salt
+const VAULT_DEK = 'alina_vault_dek'     // localStorage-Key für den eingewickelten DEK
+const VAULT_VERIFY = 'alina_vault_verify' // verschlüsselter Verifikationstoken
 const PBKDF2_ITERATIONS = 600_000
 
-/** Prefix for all vault-encrypted values in localStorage */
+/**
+ * Prefix für alle vault-verschlüsselten Werte. Erlaubt es, ohne
+ * Try-Catch zu erkennen, ob ein Wert bereits verschlüsselt ist
+ * (vs. einer aus der Plaintext-Vor-Migrations-Phase).
+ */
 export const ENCRYPTED_PREFIX = 'v1:'
 
+/**
+ * Der DEK als WebCrypto-Schlüssel.
+ *
+ * `null` solange der Vault verschlossen ist. Sobald `unlockVault()`
+ * oder `initVault()` durchläuft, hält diese Modul-Variable den
+ * importierten Schlüssel — non-extractable, sodass selbst Code mit
+ * voller DOM-Hoheit ihn nicht roh exportieren kann, sondern nur
+ * `encrypt`/`decrypt` aufrufen.
+ */
 let dataKey: CryptoKey | null = null
 
-// ── Helpers ──────────────────────────────────────────────────────
+// ── Base64-Hilfsfunktionen ───────────────────────────────────────
+//
+// IV und Ciphertext werden als Base64 in localStorage abgelegt
+// (Strings sind dort robuster als Binärdaten).
 
 function toBase64(arr: Uint8Array): string {
   let bin = ''
@@ -39,8 +85,16 @@ function fromBase64(b64: string): Uint8Array {
   return arr
 }
 
-// ── Internal Crypto ──────────────────────────────────────────────
+// ── Interne Krypto-Bausteine ─────────────────────────────────────
 
+/**
+ * PBKDF2-Schlüsselableitung: PIN + Salt → KEK.
+ *
+ * 600 000 Iterationen sind der OWASP-Stand 2023 für PBKDF2-SHA256.
+ * Auf einem typischen Smartphone dauert das ~0.5–1 Sekunde — für den
+ * User akzeptabel beim Unlock, für einen Brute-Force-Angreifer aber
+ * Faktor 600 000 langsamer pro PIN-Versuch.
+ */
 async function deriveKEK(pin: string, salt: Uint8Array): Promise<CryptoKey> {
   const material = await crypto.subtle.importKey(
     'raw',
@@ -53,17 +107,23 @@ async function deriveKEK(pin: string, salt: Uint8Array): Promise<CryptoKey> {
     { name: 'PBKDF2', salt, iterations: PBKDF2_ITERATIONS, hash: 'SHA-256' },
     material,
     { name: 'AES-GCM', length: 256 },
-    false,
+    false, // ← non-extractable
     ['encrypt', 'decrypt'],
   )
 }
 
+/**
+ * Roh-Verschlüsselung: AES-GCM mit zufälligem 12-Byte-IV.
+ * Format `iv.ciphertext`, beides Base64 — der Punkt als Trenner ist
+ * kein Standard, reicht aber für den eigenen Use-Case.
+ */
 async function encryptRaw(key: CryptoKey, data: Uint8Array): Promise<string> {
   const iv = crypto.getRandomValues(new Uint8Array(12))
   const cipher = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, data)
   return toBase64(iv) + '.' + toBase64(new Uint8Array(cipher))
 }
 
+/** Spiegelbild zu encryptRaw. Wirft, wenn das Auth-Tag nicht stimmt. */
 async function decryptRaw(key: CryptoKey, encoded: string): Promise<Uint8Array> {
   const dot = encoded.indexOf('.')
   if (dot === -1) throw new Error('Invalid ciphertext format')
@@ -75,60 +135,66 @@ async function decryptRaw(key: CryptoKey, encoded: string): Promise<Uint8Array> 
 
 // ── Public API ───────────────────────────────────────────────────
 
-/** Check if an encrypted vault exists in localStorage */
+/** True, wenn ein Vault auf der Disk liegt (egal ob aktuell entsperrt). */
 export function isVaultActive(): boolean {
   return !!localStorage.getItem(VAULT_SALT)
 }
 
-/** Check if the vault is currently unlocked (DEK in memory) */
+/** True, wenn der Vault gerade entsperrt ist (DEK im Speicher). */
 export function isVaultUnlocked(): boolean {
   return dataKey !== null
 }
 
-/** Check if a stored value is vault-encrypted */
+/** Heuristik, ob ein gespeicherter String unser Vault-Format hat. */
 export function isEncrypted(value: string): boolean {
   return value.startsWith(ENCRYPTED_PREFIX)
 }
 
 /**
- * Create a new vault with the given PIN.
- * Generates a random DEK, wraps it with a PIN-derived KEK,
- * and stores salt + encrypted DEK + verification token.
+ * Legt einen frischen Vault mit dem gegebenen PIN an.
+ *
+ * Schritte:
+ *   1. Zufälliges 32-Byte-Salt würfeln und persistieren.
+ *   2. KEK aus PIN + Salt ableiten.
+ *   3. DEK würfeln, mit KEK einwickeln und persistieren.
+ *   4. DEK als non-extractable WebCrypto-Key in den Speicher importieren.
+ *   5. Roh-DEK-Bytes mit Nullen überschreiben (best-effort: JS-GC räumt
+ *      hinterher noch auf, aber kein Reststring bleibt im üblichen Pfad).
+ *   6. Einen Verifikations-Token verschlüsseln und ablegen, damit man
+ *      später beim Unlock einen falschen PIN sauber erkennen kann
+ *      (über den AES-GCM-Auth-Tag-Mismatch).
  */
 export async function initVault(pin: string): Promise<void> {
   const salt = crypto.getRandomValues(new Uint8Array(32))
   const kek = await deriveKEK(pin, salt)
 
-  // Generate random DEK
   const dekBytes = crypto.getRandomValues(new Uint8Array(32))
-
-  // Encrypt DEK with KEK
   const encryptedDEK = await encryptRaw(kek, dekBytes)
 
-  // Import DEK as non-extractable CryptoKey
   dataKey = await crypto.subtle.importKey(
     'raw',
     dekBytes,
     { name: 'AES-GCM', length: 256 },
-    false, // non-extractable
+    false,
     ['encrypt', 'decrypt'],
   )
 
-  // Zero out raw DEK bytes
-  dekBytes.fill(0)
+  dekBytes.fill(0) // Klartext-DEK löschen
 
-  // Persist salt + encrypted DEK
   localStorage.setItem(VAULT_SALT, toBase64(salt))
   localStorage.setItem(VAULT_DEK, encryptedDEK)
 
-  // Store encrypted verification token (proves correct PIN on unlock)
   const verify = await vaultEncrypt('alina-vault-ok')
   localStorage.setItem(VAULT_VERIFY, verify)
 }
 
 /**
- * Attempt to unlock the vault with a PIN.
- * Returns true if the PIN is correct.
+ * Versucht, den Vault mit einem PIN zu entsperren.
+ *
+ * Trick beim Verifikationstoken: wir entschlüsseln einen bekannten
+ * String. Wenn das Ergebnis "alina-vault-ok" ist (und das AES-GCM-
+ * Auth-Tag stimmt), war der PIN richtig. Bei falschem PIN wirft AES-GCM
+ * eine Exception → wir fangen sie ab und liefern `false`.
  */
 export async function unlockVault(pin: string): Promise<boolean> {
   const saltB64 = localStorage.getItem(VAULT_SALT)
@@ -140,22 +206,20 @@ export async function unlockVault(pin: string): Promise<boolean> {
     const salt = fromBase64(saltB64)
     const kek = await deriveKEK(pin, salt)
 
-    // Decrypt DEK with KEK
+    // DEK aus dem Wrap holen
     const dekBytes = await decryptRaw(kek, encDEK)
 
-    // Import DEK as non-extractable CryptoKey
     const candidateKey = await crypto.subtle.importKey(
       'raw',
       dekBytes,
       { name: 'AES-GCM', length: 256 },
-      false, // non-extractable
+      false,
       ['encrypt', 'decrypt'],
     )
 
-    // Zero out raw bytes
-    dekBytes.fill(0)
+    dekBytes.fill(0) // Klartext-DEK weg
 
-    // Verify by decrypting the stored verification token
+    // Sanity-Check: Verifikationstoken muss "alina-vault-ok" entschlüsseln
     if (!verifyStored.startsWith(ENCRYPTED_PREFIX)) return false
     const verifyRaw = verifyStored.slice(ENCRYPTED_PREFIX.length)
     const verifyBytes = await decryptRaw(candidateKey, verifyRaw)
@@ -166,16 +230,16 @@ export async function unlockVault(pin: string): Promise<boolean> {
     dataKey = candidateKey
     return true
   } catch {
-    return false // Wrong PIN -> AES-GCM auth tag mismatch
+    return false // ← falscher PIN führt hier her
   }
 }
 
-/** Lock the vault — wipe DEK from memory */
+/** Vault wieder zusperren — DEK aus dem Speicher kicken. */
 export function lockVault(): void {
   dataKey = null
 }
 
-/** Encrypt a plaintext string. Returns prefixed ciphertext. */
+/** Verschlüsselt einen String mit dem aktuellen DEK. Wirft, wenn der Vault zu ist. */
 export async function vaultEncrypt(plaintext: string): Promise<string> {
   if (!dataKey) throw new Error('Vault is locked')
   const encoded = new TextEncoder().encode(plaintext)
@@ -183,11 +247,15 @@ export async function vaultEncrypt(plaintext: string): Promise<string> {
   return ENCRYPTED_PREFIX + raw
 }
 
-/** Decrypt a vault-encrypted string. Passes through plaintext unchanged. */
+/**
+ * Entschlüsselt einen Vault-String. Werte ohne `v1:`-Prefix kommen
+ * unverändert zurück — das ist der Pfad für noch nicht migrierte
+ * Klartext-Daten (siehe `migrateToVault()` in storage.ts).
+ */
 export async function vaultDecrypt(ciphertext: string): Promise<string> {
   if (!dataKey) throw new Error('Vault is locked')
   if (!ciphertext.startsWith(ENCRYPTED_PREFIX)) {
-    return ciphertext // Plaintext (pre-migration data)
+    return ciphertext
   }
   const raw = ciphertext.slice(ENCRYPTED_PREFIX.length)
   const plainBytes = await decryptRaw(dataKey, raw)
@@ -195,8 +263,17 @@ export async function vaultDecrypt(ciphertext: string): Promise<string> {
 }
 
 /**
- * Change the vault PIN without re-encrypting data.
- * Decrypts DEK with old KEK, re-encrypts with new KEK.
+ * PIN ändern — ohne die eigentlichen Daten anzufassen.
+ *
+ * Ablauf:
+ *   1. DEK mit dem alten KEK auswickeln.
+ *   2. Neues Salt würfeln, neuen KEK aus dem neuen PIN ableiten.
+ *   3. DEK mit dem neuen KEK neu einwickeln und persistieren.
+ *   4. DEK weiter als non-extractable WebCrypto-Key halten.
+ *   5. Verifikationstoken neu verschlüsseln (selbe DEK, frischer IV).
+ *
+ * Da der DEK gleich bleibt, müssen weder Identitäten noch Nachrichten
+ * neu verschlüsselt werden — egal wie viele MB an Chat-History.
  */
 export async function changeVaultPin(oldPin: string, newPin: string): Promise<boolean> {
   const saltB64 = localStorage.getItem(VAULT_SALT)
@@ -204,19 +281,14 @@ export async function changeVaultPin(oldPin: string, newPin: string): Promise<bo
   if (!saltB64 || !encDEK) return false
 
   try {
-    // Decrypt DEK with old KEK
     const oldSalt = fromBase64(saltB64)
     const oldKEK = await deriveKEK(oldPin, oldSalt)
     const dekBytes = await decryptRaw(oldKEK, encDEK)
 
-    // Create new KEK from new PIN
     const newSalt = crypto.getRandomValues(new Uint8Array(32))
     const newKEK = await deriveKEK(newPin, newSalt)
-
-    // Re-encrypt DEK with new KEK
     const newEncDEK = await encryptRaw(newKEK, dekBytes)
 
-    // Re-import DEK as non-extractable
     dataKey = await crypto.subtle.importKey(
       'raw',
       dekBytes,
@@ -225,14 +297,12 @@ export async function changeVaultPin(oldPin: string, newPin: string): Promise<bo
       ['encrypt', 'decrypt'],
     )
 
-    // Zero out raw bytes
     dekBytes.fill(0)
 
-    // Store new salt + encrypted DEK
     localStorage.setItem(VAULT_SALT, toBase64(newSalt))
     localStorage.setItem(VAULT_DEK, newEncDEK)
 
-    // Re-encrypt verification token with new DEK (same DEK, but new IV)
+    // Verify-Token muss ebenfalls neu rein, sonst stimmt der IV nicht
     const verify = await vaultEncrypt('alina-vault-ok')
     localStorage.setItem(VAULT_VERIFY, verify)
 
@@ -242,7 +312,11 @@ export async function changeVaultPin(oldPin: string, newPin: string): Promise<bo
   }
 }
 
-/** Destroy the vault completely (used on logout) */
+/**
+ * Vault komplett zerstören (Logout-Flow).
+ * Damit ist der DEK weg und alle verschlüsselten Werte sind unbrauchbarer
+ * Müll. `clearAll()` in storage.ts schmeißt sie anschließend raus.
+ */
 export function destroyVault(): void {
   dataKey = null
   localStorage.removeItem(VAULT_SALT)

@@ -1,3 +1,15 @@
+/**
+ * AppSplash — Einblendung beim App-Start.
+ *
+ * Zeigt das Logo-Animations-Element und den App-Namen für ca. 2.8 s,
+ * bevor `onDone` aufgerufen wird. Anschließend entscheidet App.tsx,
+ * welche Phase als Nächstes kommt (Vault-Unlock, Setup, oder Ready).
+ *
+ * Die Animation ist als CSS-only via `<style>` inline definiert,
+ * damit sie ohne externes Stylesheet läuft (relevant für die
+ * allererste Render-Pause).
+ */
+
 import { useState, useEffect } from 'react'
 
 export function AppSplash({ onDone }: { onDone: () => void }) {

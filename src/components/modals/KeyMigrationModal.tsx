@@ -4,6 +4,24 @@ import { encodeNpub } from '../../lib/crypto'
 import { performKeyMigration } from '../../lib/nostr'
 import { ConfirmDialog } from '../ui/ConfirmDialog'
 
+/**
+ * KeyMigrationModal — UI-Flow für die Schlüsselrotation.
+ *
+ * Schritte aus Sicht der Komponente:
+ *
+ *   confirm   — Bestätigungsdialog mit Warnung. Erst nach explizitem
+ *               Klick auf "Rotate Key" geht es weiter.
+ *   migrating — Fortschrittsanzeige, während performKeyMigration
+ *               läuft (neuen Key erzeugen, Cross-Sig, Migrations-
+ *               Event publishen, Kontakte per DM benachrichtigen).
+ *   done      — Erfolgsbildschirm mit dem neuen npub und einem
+ *               Hinweis, den Fingerprint mit Kontakten zu verifizieren.
+ *   error     — Fehlerfall mit Beschreibung.
+ *
+ * Achtung: Die eigentliche Krypto + Relay-Kommunikation passiert in
+ * `lib/nostr.ts → performKeyMigration`. Diese Komponente sorgt nur
+ * dafür, dass die Identität anschließend auch lokal aktualisiert ist.
+ */
 export function KeyMigrationModal() {
   const identity = useStore(s => s.identity)
   const contacts = useStore(s => s.contacts)

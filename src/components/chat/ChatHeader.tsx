@@ -5,6 +5,21 @@ import { useT } from '../../hooks/useT'
 import { Avatar } from '../ui/Avatar'
 import { encodeNpub } from '../../lib/crypto'
 
+/**
+ * ChatHeader — die Kopfzeile über dem aktiven Chat.
+ *
+ * Zeigt:
+ *   • Avatar + Anzeigename des Gegenübers (oder Gruppenname)
+ *   • Untertitel: "Verschlüsselt" bzw. "Gruppe", plus
+ *     P2P-Indikator ("Direktverbindung"), wenn der Datenkanal offen ist
+ *   • Such-Button: blendet eine kleine Suchleiste ein, die im offenen
+ *     Chat nach Textnachrichten filtert
+ *   • Kopier-Button: legt den eigenen npub in die Zwischenablage,
+ *     sodass der User ihn schnell teilen kann
+ *
+ * Auf Mobile zusätzlich ein Pfeil-zurück-Button, der die Sidebar
+ * wieder öffnet (zurück zur Chat-Übersicht).
+ */
 export function ChatHeader() {
   const activeChat = useStore(s => s.activeChat)
   const identity = useStore(s => s.identity)

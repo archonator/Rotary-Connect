@@ -1,3 +1,19 @@
+/**
+ * Übersetzungs-Wörterbücher.
+ *
+ * Aufbau: pro Sprache ein flaches Objekt mit punkt-getrennten Keys
+ * (z. B. `setup.nameLabel`, `chat.guide1Title`). Die Keys werden über
+ * den exportierten `TKey`-Typ aus `translations.en` abgeleitet, sodass
+ * jeder Aufruf von `t(...)` zur Compile-Zeit geprüft wird:
+ *
+ *   • Tippfehler im Key → TS-Fehler.
+ *   • Fehlende Übersetzung in `de` → TS-Fehler (de muss alle Keys von
+ *     en haben, weil das Translations-Objekt einheitlich getypt wird).
+ *
+ * Aktuell ausgelieferte Sprachen: Englisch (en) und Deutsch (de).
+ * Russisch ist als Roadmap-Punkt geplant.
+ */
+
 export type Lang = 'en' | 'de'
 
 export const translations = {

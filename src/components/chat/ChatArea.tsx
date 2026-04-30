@@ -7,6 +7,22 @@ import { MessageList } from './MessageList'
 import { ChatInput } from './ChatInput'
 import { Lightbox } from '../ui/Lightbox'
 
+/**
+ * ChatArea — die rechte Spalte: aktueller Chat oder Onboarding-Schirm.
+ *
+ * Zwei Zustände:
+ *
+ *   1. Kein Chat ausgewählt → Onboarding-Schirm mit Kurzanleitung
+ *      und zwei Buttons ("Rotarier einladen", "Gruppe erstellen").
+ *      Auf Mobilgeräten wird zusätzlich ein Sidebar-Toggle-Button
+ *      angezeigt, weil die Sidebar dort einklappt.
+ *
+ *   2. Chat ausgewählt → ChatHeader + MessageList + ChatInput
+ *      vertikal gestapelt. Klick auf ein Bild öffnet die Lightbox.
+ *
+ * Zusätzlich: Swipe-rechts vom linken Bildschirmrand öffnet die
+ * Sidebar (mobile UX).
+ */
 export function ChatArea() {
   const activeChat = useStore(s => s.activeChat)
   const setOpenModal = useStore(s => s.setOpenModal)

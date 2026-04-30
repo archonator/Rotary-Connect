@@ -6,6 +6,26 @@ import { useT } from '../../hooks/useT'
 import { formatTime } from '../../lib/utils'
 import { translate, getLangName } from '../../lib/translate'
 
+/**
+ * MessageBubble — eine einzelne Nachrichten-Blase im Chat.
+ *
+ * Stellt vier Nachrichtentypen dar:
+ *   • Text     — normale Schrift, optional automatisch übersetzt mit
+ *                "Original anzeigen"-Toggle
+ *   • Bild     — geladenes Base64-Bild, klickbar für Lightbox-Anzeige
+ *   • Standort — Koordinaten + OpenStreetMap-Link (privacy-freundlich,
+ *                kein Pixel-Tracking durch Drittanbieter beim Rendern)
+ *
+ * Spezielle Anzeigen:
+ *   • Sender-Name in Räumen (in DMs implizit, also weglassen)
+ *   • Status-Icon eigener Nachrichten (Spinner/Haken/Warnung)
+ *   • Countdown-Badge bei selbstlöschenden Nachrichten (→ Sekunden,
+ *     Minuten oder Stunden bis zum Verschwinden)
+ *
+ * Memoization: Die Komponente ist mit React.memo gewrappt, damit das
+ * Re-Rendern eines neuen Eingangs nicht alle bestehenden Bubbles
+ * neu rendert.
+ */
 interface MessageBubbleProps {
   msg: Message
   isMine: boolean

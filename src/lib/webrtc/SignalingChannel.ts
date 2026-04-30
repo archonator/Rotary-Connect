@@ -1,9 +1,17 @@
 /**
- * SignalingChannel — routes WebRTC signaling through Nostr relays.
+ * SignalingChannel — routet WebRTC-Signaling über Nostr-Relays.
  *
- * SDP offers/answers and ICE candidates are encrypted with NIP-04
- * and sent as ephemeral Nostr events (Kind 25050).
- * This way, no additional signaling server is needed.
+ * Üblicherweise braucht WebRTC einen separaten Signaling-Server,
+ * über den die zwei Peers ihre SDP-Offers/Answers und ICE-Kandidaten
+ * austauschen. Wir umgehen das, indem wir diese Daten:
+ *
+ *   1. mit NIP-04 (ECDH + AES) für den Empfänger verschlüsseln,
+ *   2. in ein ephemeres Nostr-Event (Kind 25050) verpacken,
+ *   3. über die ohnehin offenen Relay-Verbindungen senden.
+ *
+ * Vorteil: Kein zusätzlicher Server, keine zentrale Stelle, die mitsehen
+ * könnte. Nachteil: Latenz und Reichweite hängen vom Relay-Status ab —
+ * aber für ein Setup, das nur Sekunden dauert, ist das tolerierbar.
  */
 
 import { WEBRTC_SIGNAL_KIND } from '../constants'
@@ -13,11 +21,12 @@ import { saveLog } from '../storage'
 import { handleSignal } from './PeerManager'
 import type { SignalMessage } from './types'
 
-// ── Send Signal via Nostr ────────────────────────────────────────
+// ── Signal über Nostr senden ─────────────────────────────────────
 
 /**
- * Encrypt and publish a signaling message to Nostr relays.
- * The signal is NIP-04 encrypted so only the recipient can read it.
+ * Verschlüsselt eine Signaling-Nachricht und veröffentlicht sie als
+ * Kind-25050-Event. Nur der Empfänger (signal.to) kann sie lesen,
+ * weil NIP-04 zum Verschlüsseln dessen Pubkey benutzt.
  */
 export async function sendSignal(
   privkey: Uint8Array,
@@ -47,11 +56,21 @@ export async function sendSignal(
   }
 }
 
-// ── Receive Signal from Nostr ────────────────────────────────────
+// ── Signal vom Nostr empfangen ───────────────────────────────────
 
 /**
- * Handle an incoming signaling event from Nostr.
- * Decrypts the NIP-04 payload and passes it to PeerManager.
+ * Verarbeitet ein eingehendes Kind-25050-Event:
+ *
+ *   1. Entschlüsselt den NIP-04-Payload mit dem eigenen privkey.
+ *   2. Verwirft "abgestandene" Signale: alles, was älter als 60 s
+ *      oder mehr als 10 s in der Zukunft liegt — ein Replay alter
+ *      Signale könnte sonst eine WebRTC-Verbindung in einen
+ *      ungewollten Zustand zwingen.
+ *   3. Wichtig: für die Altersprüfung verwenden wir `event.created_at`
+ *      (das ist signiert), nicht `data.ts` aus dem Payload (das ist
+ *      vom Sender im Klartext setzbar und damit fälschbar).
+ *   4. Übergibt das Signal an den PeerManager, der die SDP/ICE-Logik
+ *      übernimmt.
  */
 export async function handleSignalingEvent(
   privkey: Uint8Array,

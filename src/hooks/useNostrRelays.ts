@@ -1,3 +1,39 @@
+/**
+ * useNostrRelays — verkabelt die App mit dem Nostr- und WebRTC-Layer.
+ *
+ * Dieser Hook ist die einzige Stelle, an der die Lib-Module
+ * (`nostr.ts`, `webrtc/*`, `offlineQueue.ts`) direkt mit dem
+ * React-State (`useStore`) sprechen. Konkret macht er folgendes:
+ *
+ *   1. **State-Snapshot bereitstellen.** Über `setGetState()` legt er
+ *      eine Funktion ab, die nostr.ts zu jedem eingehenden Event
+ *      aufrufen kann, um zu erfahren: Wer bin ich? Welche Kontakte
+ *      habe ich? Welche Räume?
+ *
+ *   2. **Eingehende Nachrichten in den Store schreiben.** Der
+ *      `setOnMessage`-Callback bekommt {chatId, msg} und ruft
+ *      `addMessage`. Bei Nachrichten in nicht-aktiven Chats wird der
+ *      Unread-Counter erhöht.
+ *
+ *   3. **WebRTC initialisieren.** Peer-Manager bekommt drei
+ *      Callbacks: Statusänderung, eingehende DM-Daten,
+ *      ausgehende Signale (die per Nostr verschlüsselt versendet
+ *      werden müssen).
+ *
+ *   4. **Schlüsselrotationen verarbeiten.** Wenn ein Kontakt seinen
+ *      Schlüssel rotiert, migriert der Hook die Chat-Historie auf
+ *      die neue Pubkey und zeigt einen Status-Banner an.
+ *
+ *   5. **Offline-Queue verkabeln.** Bei Reconnect wird die Queue
+ *      über `flushQueue()` abgearbeitet — der Flush-Callback ruft
+ *      `publishDM`/`publishRoomMessage` auf, je nach Chat-Typ.
+ *
+ *   6. **Relays verbinden** und beim Unmount wieder trennen.
+ *
+ * Cleanup-Reihenfolge ist wichtig: erst Peers trennen (sonst feuern
+ * deren onclose-Handler ins Leere), dann Relays.
+ */
+
 import { useEffect, useRef } from 'react'
 import { useStore } from '../store/useStore'
 import { connectAllRelays, disconnectAllRelays, setOnMessage, setGetState, setRelayCountListener, setOnMigration, publishDM, publishRoomMessage } from '../lib/nostr'

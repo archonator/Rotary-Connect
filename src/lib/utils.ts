@@ -1,9 +1,25 @@
+/**
+ * Kleine Helfer-Funktionen, die in mehreren Komponenten verwendet
+ * werden — Datums-/Zeitformatierung und die Vorschau für die Chat-Liste.
+ */
+
 import { translations, type Lang } from './i18n'
 
+/** i18n-Lookup nur für die Helper hier — vermeidet einen useT-Hook im Lib-Modul. */
 function tr(lang: Lang, key: 'utils.yesterday' | 'utils.noMessages' | 'utils.image' | 'utils.location'): string {
   return translations[lang][key] as string
 }
 
+/**
+ * Formatiert einen Unix-ms-Zeitstempel kontextsensitiv:
+ *
+ *   • heute  →  nur die Uhrzeit  (z. B. "14:32")
+ *   • gestern → "Gestern 14:32"
+ *   • dieses Jahr → "12. Mär, 14:32"
+ *   • älter → "12. Mär 2024, 14:32"
+ *
+ * Locale-Abhängig: Deutsch (de-DE) oder englisch (en-GB) als Fallback.
+ */
 export function formatTime(ts: number, lang: Lang = 'en'): string {
   const d = new Date(ts)
   const now = new Date()
@@ -25,6 +41,15 @@ export function formatTime(ts: number, lang: Lang = 'en'): string {
   return `${date}, ${time}`
 }
 
+/**
+ * Liefert die Kurzvorschau, die in der Chat-Liste neben dem
+ * Kontaktnamen angezeigt wird.
+ *
+ * Spezialfälle: Bilder und Standorte werden nicht durch ihren rohen
+ * Inhalt repräsentiert (das wäre ein Base64-Datenblob bzw. JSON),
+ * sondern durch lokalisierte Platzhalter ("📷 Bild", "📍 Standort").
+ * Textnachrichten werden auf 40 Zeichen gekürzt.
+ */
 export function lastMsgPreview(messages: { type: string; content: string }[], lang: Lang = 'en'): string {
   const last = messages[messages.length - 1]
   if (!last) return tr(lang, 'utils.noMessages')

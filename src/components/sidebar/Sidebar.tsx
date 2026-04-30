@@ -5,6 +5,21 @@ import { ChatList } from './ChatList'
 import { RELAYS } from '../../lib/constants'
 import { Settings, MessageCirclePlus, Users, Download } from 'lucide-react'
 
+/**
+ * Sidebar — die linke Spalte mit Chat-Liste und globalen Aktionen.
+ *
+ * Inhalt:
+ *   • Header: Relay-Statuspunkt (rot/gelb/grün, je nach verbundenen
+ *     Relays), optional ein Install-Button (wenn der Browser
+ *     "installierbar" meldet) und das Settings-Icon.
+ *   • Body:   Liste der Kontakte und Räume (siehe ChatList).
+ *   • Footer: zwei dicke Buttons "Neuer Chat" und "Gruppe", die das
+ *     jeweilige Modal öffnen.
+ *
+ * Auf Mobilgeräten ist die Sidebar per `sidebarOpen` slidet rein/raus —
+ * gesteuert über den Store, damit Swipe-Gesten in ChatArea sie öffnen
+ * können.
+ */
 export function Sidebar() {
   const setOpenModal = useStore(s => s.setOpenModal)
   const sidebarOpen = useStore(s => s.sidebarOpen)
