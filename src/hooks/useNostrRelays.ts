@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { useStore } from '../store/useStore'
-import { connectAllRelays, disconnectAllRelays, setOnMessage, setGetState, setRelayCountListener, publishDM, publishRoomMessage, publishRoomPresence } from '../lib/nostr'
+import { connectAllRelays, disconnectAllRelays, setOnMessage, setGetState, setRelayCountListener, setOnMigration, publishDM, publishRoomMessage } from '../lib/nostr'
+import { saveLog } from '../lib/storage'
 import { setFlushCallback, flushQueue } from '../lib/offlineQueue'
 import { initPeerManager, setPeerCallbacks, connectToContacts, disconnectAllPeers } from '../lib/webrtc'
 import { sendSignal } from '../lib/webrtc/SignalingChannel'
@@ -17,6 +18,8 @@ export function useNostrRelays() {
   const addRoomMember = useStore(s => s.addRoomMember)
   const activeChat = useStore(s => s.activeChat)
   const setPeerState = useStore(s => s.setPeerState)
+  const migrateContact = useStore(s => s.migrateContact)
+  const showStatus = useStore(s => s.showStatus)
 
   // Use a ref so the onMessage callback always sees the latest activeChat
   // without needing to re-register on every chat switch
@@ -33,12 +36,24 @@ export function useNostrRelays() {
     setGetState(() => ({
       privkey: identity.privkey,
       pubkey: identity.pubkey,
+      name: identity.name,
       contacts,
       rooms,
       addRoomMember,
     }))
 
     setRelayCountListener(setRelayCount)
+
+    // ── Key-rotation handler: when a verified migration event arrives for a known
+    //    contact, transfer their chat data to the new pubkey and notify the user.
+    setOnMigration((oldPubkey, newPubkey) => {
+      const { contacts } = useStore.getState()
+      const contact = contacts[oldPubkey]
+      if (!contact) return // not in our contact list — ignore
+      migrateContact(oldPubkey, newPubkey)
+      saveLog('migration', `Contact ${contact.name} migrated ${oldPubkey.slice(0, 8)} → ${newPubkey.slice(0, 8)}`)
+      showStatus(`${contact.name} rotated their key — please verify the new fingerprint`, 8000)
+    })
 
     // ── Nostr message callback (relay-delivered messages) ──
     setOnMessage((chatId: string, msg: Message) => {
@@ -135,6 +150,7 @@ export function useNostrRelays() {
     setGetState(() => ({
       privkey: identity.privkey,
       pubkey: identity.pubkey,
+      name: identity.name,
       contacts,
       rooms,
       addRoomMember,

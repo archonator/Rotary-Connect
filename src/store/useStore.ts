@@ -60,6 +60,8 @@ interface AppState {
   ensureContact: (pubkey: string, name: string) => void
   renameContact: (pubkey: string, name: string) => void
   deleteContact: (pubkey: string) => void
+  /** Move all data from oldPubkey to newPubkey (used after a verified key rotation) */
+  migrateContact: (oldPubkey: string, newPubkey: string) => void
 
   // Rooms
   rooms: Record<string, Room>
@@ -202,6 +204,50 @@ export const useStore = create<AppState>((set, get) => ({
     set({ contacts: updated })
   },
 
+  migrateContact: (oldPubkey, newPubkey) => {
+    if (oldPubkey === newPubkey) return
+    const { contacts, messages, unread, activeChat } = get()
+    const oldContact = contacts[oldPubkey]
+    if (!oldContact) return
+
+    // Move contact entry
+    const updatedContacts = { ...contacts }
+    delete updatedContacts[oldPubkey]
+    updatedContacts[newPubkey] = { ...oldContact, pubkey: newPubkey }
+
+    // Move chat history under the new chatId
+    const oldChatId = 'dm:' + oldPubkey
+    const newChatId = 'dm:' + newPubkey
+    const updatedMessages: Record<string, Message[]> = { ...messages }
+    if (updatedMessages[oldChatId]) {
+      const carried = (updatedMessages[oldChatId] || []).map(m =>
+        m.pubkey === oldPubkey ? { ...m, pubkey: newPubkey } : m,
+      )
+      updatedMessages[newChatId] = [...(updatedMessages[newChatId] || []), ...carried]
+      delete updatedMessages[oldChatId]
+    }
+
+    // Carry unread + active chat
+    const updatedUnread = { ...unread }
+    if (updatedUnread[oldChatId] !== undefined) {
+      updatedUnread[newChatId] = (updatedUnread[newChatId] || 0) + (updatedUnread[oldChatId] || 0)
+      delete updatedUnread[oldChatId]
+    }
+    const updatedActiveChat = activeChat?.chatId === oldChatId
+      ? { ...activeChat, id: newPubkey, chatId: newChatId }
+      : activeChat
+
+    storage.saveContacts(updatedContacts)
+    storage.saveMessages(updatedMessages)
+    storage.saveUnread(updatedUnread)
+    set({
+      contacts: updatedContacts,
+      messages: updatedMessages,
+      unread: updatedUnread,
+      activeChat: updatedActiveChat,
+    })
+  },
+
   deleteContact: (pubkey) => {
     const { contacts, messages, unread, activeChat } = get()
     const updatedContacts = { ...contacts }
@@ -342,6 +388,9 @@ export const useStore = create<AppState>((set, get) => ({
   setAutoTranslate: (v) => { localStorage.setItem('alina-autotranslate', String(v)); set({ autoTranslate: v }) },
   allowExternalTranslation: localStorage.getItem('alina-allow-external-translate') === 'true',
   setAllowExternalTranslation: (v) => { localStorage.setItem('alina-allow-external-translate', String(v)); set({ allowExternalTranslation: v }) },
+  // Default ON (matches previous always-vibrate behaviour); user can disable
+  vibrateOnIncoming: localStorage.getItem('rc-vibrate') !== 'false',
+  setVibrateOnIncoming: (v) => { localStorage.setItem('rc-vibrate', String(v)); set({ vibrateOnIncoming: v }) },
   updateMessageStatus: (chatId, ts, pubkey, status) => {
     const { messages } = get()
     const msgs = messages[chatId]
@@ -349,7 +398,7 @@ export const useStore = create<AppState>((set, get) => ({
     const idx = msgs.findIndex(m => m.ts === ts && m.pubkey === pubkey)
     if (idx === -1) return
     const updated = [...msgs]
-    updated[idx] = { ...updated[idx], status }
+    updated[idx] = { ...target, status }
     const newMessages = { ...messages, [chatId]: updated }
     storage.saveMessages(newMessages)
     set({ messages: newMessages })

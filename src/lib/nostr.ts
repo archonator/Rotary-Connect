@@ -24,10 +24,31 @@ const pendingInviteLookups = new Map<string, (result: InviteResult | null) => vo
 let getStateCallback: (() => {
   privkey: Uint8Array | null
   pubkey: string | null
+  name: string
   contacts: Record<string, { pubkey: string; name: string }>
   rooms: Record<string, { name: string; hash: string; members: string[] }>
   addRoomMember: (hash: string, pubkey: string) => void
 }) | null = null
+
+/**
+ * Per-room debounce: at most one self-presence broadcast per N ms, so newly
+ * discovered members trigger a single "I'm here too" handshake rather than
+ * an O(n²) presence storm.
+ */
+const lastSelfPresenceAt: Record<string, number> = {}
+const SELF_PRESENCE_THROTTLE_MS = 30_000
+
+function maybeAnnouncePresence(roomHash: string): void {
+  const state = getStateCallback?.()
+  if (!state?.privkey || !state.pubkey) return
+  const room = state.rooms[roomHash]
+  if (!room) return
+  const now = Date.now()
+  const last = lastSelfPresenceAt[roomHash] ?? 0
+  if (now - last < SELF_PRESENCE_THROTTLE_MS) return
+  lastSelfPresenceAt[roomHash] = now
+  publishRoomPresence(state.privkey, state.pubkey, roomHash, state.name)
+}
 
 export function setOnMessage(cb: typeof onMessageCallback): void {
   onMessageCallback = cb
@@ -138,18 +159,6 @@ export function publishToRelays(event: object): void {
   })
 }
 
-export function subscribeToRoom(roomHash: string): void {
-  relays.forEach(r => {
-    try {
-      // Subscribe to presence events for this room
-      const sub = JSON.stringify(['REQ', 'room-' + roomHash.slice(0, 8), { kinds: [ROOM_PRESENCE_KIND], '#e': [roomHash], limit: 100 }])
-      r.ws.send(sub)
-    } catch (e) {
-      saveLog('relay-error', 'Failed to subscribe to room on ' + r.url + ': ' + String(e))
-    }
-  })
-}
-
 export function resubscribeAll(): void {
   relays.forEach(r => subscribeAll(r.ws))
 }
@@ -248,16 +257,23 @@ function handleRoomPresence(event: { id?: string; pubkey: string; content: strin
   if (!state) return
 
   const roomHashTag = event.tags.find((t: string[]) => t[0] === 'e')
-  if (!roomHashTag) return
-  const roomHash = roomHashTag[1]
-  if (!state.rooms[roomHash]) return
+  const roomHash = roomHashTag?.[1]
+  if (!roomHash) return
+  const room = state.rooms[roomHash]
+  if (!room) return
 
   const fromPubkey = event.pubkey
   if (fromPubkey === state.pubkey) return
 
   // Add this pubkey as a known room member
+  const wasNew = !room.members.includes(fromPubkey)
   state.addRoomMember(roomHash, fromPubkey)
-  saveLog('room', 'Discovered member ' + fromPubkey.slice(0, 8) + '... in room ' + state.rooms[roomHash].name)
+  if (wasNew) {
+    saveLog('room', 'Discovered member ' + fromPubkey.slice(0, 8) + '... in room ' + room.name)
+    // Reply with our own presence so the new member learns about us too —
+    // throttled per room to avoid presence storms.
+    maybeAnnouncePresence(roomHash)
+  }
 }
 
 /** Handle Kind 1059 Gift Wrap — unwrap, unseal, extract room message */
@@ -279,12 +295,14 @@ async function handleGiftWrap(event: { id?: string; pubkey: string; content: str
 
     // Step 3: Extract room hash from rumor tags
     const roomHashTag = rumor.tags.find((t: string[]) => t[0] === 'e')
-    if (!roomHashTag) return
-    const roomHash = roomHashTag[1]
-    if (!state.rooms[roomHash]) return
+    const roomHash = roomHashTag?.[1]
+    const room = roomHash ? state.rooms[roomHash] : undefined
+    if (!roomHash || !room) return
 
-    // Learn this member
+    // Learn this member; if new, announce ourselves so they know to gift-wrap us next time.
+    const wasNew = !room.members.includes(senderPubkey)
     state.addRoomMember(roomHash, senderPubkey)
+    if (wasNew) maybeAnnouncePresence(roomHash)
 
     // Step 4: Parse message content (with size/structure validation)
     if (rumor.content.length > 1_000_000) return // reject oversized payloads
@@ -306,7 +324,10 @@ async function handleGiftWrap(event: { id?: string; pubkey: string; content: str
       pubkey: senderPubkey,
       name: displayName,
       ts: rumor.created_at * 1000,
-      eventId: event.id,
+      // Use the SEAL id (signed by the sender) as the dedup key, NOT the gift-wrap id
+      // — gift wraps use ephemeral keys and have a different id per recipient/relay,
+      // which would let duplicates slip through.
+      eventId: seal.id,
       ...(ttl ? { ttl, expiresAt } : {}),
     }
     onMessageCallback?.(chatId, msg)
@@ -431,7 +452,7 @@ export async function publishRoomMessage(
   for (const memberPubkey of members) {
     if (memberPubkey === myPubkey) continue
     try {
-      const seal = createSeal(privkey, myPubkey, memberPubkey, rumor)
+      const seal = createSeal(privkey, memberPubkey, rumor)
       const giftWrap = createGiftWrap(memberPubkey, seal)
       publishToRelays(giftWrap)
     } catch (e) {
@@ -467,10 +488,9 @@ export async function performKeyMigration(
   // Step 2: Cross-signature (new key proves it controls migration)
   const crossSig = createCrossSignature(newKeyPair.privkey, oldPubkey)
 
-  // Step 3: Migration event (signed by old key)
+  // Step 3: Migration event (signed by old key — old pubkey is implicit in the signature)
   const migrationEvent = createMigrationEvent(
     oldPrivkey,
-    oldPubkey,
     newKeyPair.pubkey,
     crossSig,
   )
