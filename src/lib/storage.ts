@@ -89,6 +89,11 @@ export function hasPlaintextData(): boolean {
 
 /** Read from decrypted cache (sync) */
 function cachedRead(key: string): string | null {
+  // Before vault unlock the cache is not yet authoritative — values on disk
+  // are still plaintext (pre-migration), so read straight from localStorage.
+  // After unlock, `loadDecryptedCache()` has primed every known key in `cache`,
+  // and the cache is the single source of truth.
+  if (!isVaultUnlocked()) return localStorage.getItem(key)
   return cache[key] ?? null
 }
 
@@ -252,4 +257,5 @@ export function clearLogs(): void {
 
 export function clearAll(): void {
   localStorage.clear()
+  for (const k of Object.keys(cache)) delete cache[k]
 }

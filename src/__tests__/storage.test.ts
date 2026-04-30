@@ -101,8 +101,8 @@ describe('storage', () => {
       saveLog('test', 'hello world')
       const logs = loadLogs()
       expect(logs.length).toBe(1)
-      expect(logs[0].type).toBe('test')
-      expect(logs[0].message).toBe('hello world')
+      expect(logs[0]?.type).toBe('test')
+      expect(logs[0]?.message).toBe('hello world')
     })
 
     it('should limit logs to 100 entries', () => {
