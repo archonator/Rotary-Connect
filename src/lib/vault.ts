@@ -28,7 +28,7 @@ let dataKey: CryptoKey | null = null
 
 function toBase64(arr: Uint8Array): string {
   let bin = ''
-  for (let i = 0; i < arr.length; i++) bin += String.fromCharCode(arr[i])
+  for (let i = 0; i < arr.length; i++) bin += String.fromCharCode(arr[i] as number)
   return btoa(bin)
 }
 

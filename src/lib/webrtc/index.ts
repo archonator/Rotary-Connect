@@ -5,7 +5,6 @@ export {
   initPeerManager,
   setPeerCallbacks,
   getPeerState,
-  getAllPeerStates,
   isPeerConnected,
   connectToPeer,
   handleSignal,

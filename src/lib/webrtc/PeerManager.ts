@@ -57,15 +57,6 @@ export function getPeerState(pubkey: string): PeerState {
   return peers.get(pubkey)?.state ?? 'disconnected'
 }
 
-/** Get all peer states */
-export function getAllPeerStates(): Record<string, PeerState> {
-  const result: Record<string, PeerState> = {}
-  peers.forEach((entry, pubkey) => {
-    result[pubkey] = entry.state
-  })
-  return result
-}
-
 /** Check if a peer has an open data channel */
 export function isPeerConnected(pubkey: string): boolean {
   const entry = peers.get(pubkey)

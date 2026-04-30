@@ -35,9 +35,8 @@ export function ChatHeader() {
   const isDM = activeChat.type === 'dm'
   const peerState = isDM ? peerStates[activeChat.id] : undefined
   const isP2P = peerState === 'connected'
-  const displayName = !isGroup && activeChat.id && contacts[activeChat.id]?.name
-    ? contacts[activeChat.id].name
-    : activeChat.name
+  const contactName = !isGroup ? contacts[activeChat.id]?.name : undefined
+  const displayName = contactName ?? activeChat.name
 
   const copyPubkey = () => {
     if (!identity?.pubkey) return
@@ -50,22 +49,6 @@ export function ChatHeader() {
   const searchResults = searchQuery.trim()
     ? chatMsgs.filter(m => m.type === 'text' && m.content.toLowerCase().includes(searchQuery.toLowerCase()))
     : []
-
-  // Highlight search results by scrolling to them
-  const scrollToResult = (ts: number) => {
-    const container = document.querySelector('.chat-messages')
-    if (!container) return
-    const rows = container.querySelectorAll('.msg-row')
-    for (const row of rows) {
-      const bubble = row.querySelector('.msg-bubble')
-      if (bubble && bubble.textContent?.toLowerCase().includes(searchQuery.toLowerCase())) {
-        row.scrollIntoView({ behavior: 'smooth', block: 'center' })
-        ;(row as HTMLElement).style.background = 'rgba(200,169,126,0.15)'
-        setTimeout(() => { (row as HTMLElement).style.background = '' }, 2000)
-        break
-      }
-    }
-  }
 
   return (
     <>

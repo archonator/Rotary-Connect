@@ -41,6 +41,11 @@ function cacheSet(text: string, target: string, result: TranslationResult): void
 
 // ── Language detection ────────────────────────────────────────────────────────
 
+/** Reduce a BCP-47 tag (e.g. "en-US") to its base language ("en"). */
+function baseLang(tag: string): string {
+  return tag.split('-')[0] ?? tag
+}
+
 async function detectLang(text: string): Promise<string> {
   // Chrome AI Language Detector (Chrome 127+, offline)
   try {
@@ -50,7 +55,7 @@ async function detectLang(text: string): Promise<string> {
       if (caps.available !== 'no') {
         const detector = await ai.languageDetector.create()
         const results = await detector.detect(text)
-        if (results?.[0]?.detectedLanguage) return results[0].detectedLanguage.split('-')[0]
+        if (results?.[0]?.detectedLanguage) return baseLang(results[0].detectedLanguage)
       }
     }
   } catch { /* fall through */ }
@@ -98,8 +103,8 @@ export async function translate(text: string, targetLang: string, allowExternal 
   if (cached) return cached
 
   const from = await detectLang(text)
-  const fromBase = from.split('-')[0]
-  const toBase = targetLang.split('-')[0]
+  const fromBase = baseLang(from)
+  const toBase = baseLang(targetLang)
 
   if (fromBase === toBase) return { text, from: fromBase }
 

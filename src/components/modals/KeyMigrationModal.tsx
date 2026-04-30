@@ -28,9 +28,7 @@ export function KeyMigrationModal() {
         identity.name,
       )
 
-      // Update local identity with new key
-      const { createIdentity, ...store } = useStore.getState()
-      // Directly update identity in store with new keys
+      // Update local identity with new key directly in the store
       const newIdentity = {
         privkey: newKeyPair.privkey,
         pubkey: newKeyPair.pubkey,

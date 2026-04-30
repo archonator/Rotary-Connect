@@ -26,8 +26,8 @@ export function formatTime(ts: number, lang: Lang = 'en'): string {
 }
 
 export function lastMsgPreview(messages: { type: string; content: string }[], lang: Lang = 'en'): string {
-  if (!messages.length) return tr(lang, 'utils.noMessages')
   const last = messages[messages.length - 1]
+  if (!last) return tr(lang, 'utils.noMessages')
   if (last.type === 'image') return tr(lang, 'utils.image')
   if (last.type === 'location') return tr(lang, 'utils.location')
   return last.content ? last.content.slice(0, 40) : ''

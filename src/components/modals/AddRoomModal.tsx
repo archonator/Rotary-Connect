@@ -3,7 +3,7 @@ import { Copy, Check, Users } from 'lucide-react'
 import { useStore } from '../../store/useStore'
 import { useT } from '../../hooks/useT'
 import { hashRoomName } from '../../lib/crypto'
-import { subscribeToRoom, publishRoomPresence } from '../../lib/nostr'
+import { resubscribeAll, publishRoomPresence } from '../../lib/nostr'
 
 type View = 'create' | 'share'
 
@@ -26,7 +26,8 @@ export function AddRoomModal() {
     if (!name) return
     const hash = await hashRoomName(name)
     addRoom(hash, name)
-    subscribeToRoom(hash)
+    // Refresh room subscription on every relay so the new room is included
+    resubscribeAll()
     // Announce presence so other members discover us
     if (identity) {
       publishRoomPresence(identity.privkey, identity.pubkey, hash, identity.name)

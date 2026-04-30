@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { useStore } from '../../store/useStore'
 import { useT } from '../../hooks/useT'
 import { SOURCE_PREVIEW } from './sourcePreview'
 import { LanguageToggle } from '../ui/LanguageToggle'
@@ -34,7 +33,7 @@ export function LandingPage() {
         <div className="hero-brand">
           <span className="hero-brand-name">Rotary Connect</span>
           <div className="hero-brand-line" />
-          <span className="hero-brand-tagline">{t('landing.promisesEyebrow').replace('Four promises', 'Private messaging').replace('Четыре обещания', 'Приватный мессенджер')}</span>
+          <span className="hero-brand-tagline">{t('landing.heroBrandTagline')}</span>
         </div>
         <h1 className="hero-title">
           {t('landing.heroTitle1')}<br /><em>{t('landing.heroTitle2')}</em>

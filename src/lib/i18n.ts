@@ -198,6 +198,7 @@ export const translations = {
     'landing.pwaHint': 'Once you\'ve opened the app, save it to your home screen to get all features. The app is browser-only — it\'s not on the Apple App Store or Google Play.',
     'landing.scrollHint': 'Learn more',
     // Landing - Promises
+    'landing.heroBrandTagline': 'Private messaging',
     'landing.promisesEyebrow': 'Four promises',
     'landing.promisesTitle': 'Built on',
     'landing.promisesTitleEm': 'trust.',
@@ -448,6 +449,7 @@ export const translations = {
     'landing.pwaHint': 'Nach dem Öffnen der App speichere sie auf dem Homescreen für alle Funktionen. Die App läuft nur im Browser — sie ist nicht im App Store oder bei Google Play.',
     'landing.scrollHint': 'Mehr erfahren',
     // Landing - Promises
+    'landing.heroBrandTagline': 'Private Kommunikation',
     'landing.promisesEyebrow': 'Vier Versprechen',
     'landing.promisesTitle': 'Gebaut auf',
     'landing.promisesTitleEm': 'Vertrauen.',

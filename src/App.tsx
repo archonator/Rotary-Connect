@@ -13,8 +13,6 @@ import { StatusBar } from './components/ui/StatusBar'
 import { AppSplash } from './components/ui/AppSplash'
 import { PwaBanner } from './components/ui/PwaBanner'
 import { PinLock, PinSetup, getVaultGateMode } from './components/ui/PinLock'
-import { isVaultActive } from './lib/vault'
-import { hasPlaintextData } from './lib/storage'
 
 type AppPhase = 'splash' | 'vault-unlock' | 'vault-setup' | 'setup' | 'pin-after-setup' | 'ready'
 
@@ -22,7 +20,6 @@ export function App() {
   const identity = useStore(s => s.identity)
   const hydrate = useStore(s => s.hydrate)
   const openModal = useStore(s => s.openModal)
-  const setOpenModal = useStore(s => s.setOpenModal)
   const [phase, setPhase] = useState<AppPhase>('splash')
 
   useNostrRelays()

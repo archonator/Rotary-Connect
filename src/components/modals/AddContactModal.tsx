@@ -64,7 +64,7 @@ export function AddContactModal() {
     // Use crypto.getRandomValues for secure code generation
     const arr = new Uint32Array(1)
     crypto.getRandomValues(arr)
-    const newCode = String(100000 + (arr[0] % 900000)).padStart(6, '0')
+    const newCode = String(100000 + ((arr[0] ?? 0) % 900000)).padStart(6, '0')
     try {
       await publishInviteCode(identity.privkey, identity.pubkey, identity.name, newCode)
       setCode(newCode)

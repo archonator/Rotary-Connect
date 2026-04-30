@@ -23,6 +23,7 @@ export function ChatArea() {
   // Swipe right from left edge to open sidebar
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
     const touch = e.touches[0]
+    if (!touch) return
     if (touch.clientX < 30) {
       touchStartRef.current = { x: touch.clientX, y: touch.clientY }
     }
@@ -31,6 +32,7 @@ export function ChatArea() {
   const handleTouchEnd = useCallback((e: React.TouchEvent) => {
     if (!touchStartRef.current) return
     const touch = e.changedTouches[0]
+    if (!touch) return
     const dx = touch.clientX - touchStartRef.current.x
     const dy = Math.abs(touch.clientY - touchStartRef.current.y)
     touchStartRef.current = null

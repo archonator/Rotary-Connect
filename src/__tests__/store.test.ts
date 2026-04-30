@@ -54,7 +54,7 @@ describe('useStore', () => {
     it('should rename a contact', () => {
       useStore.getState().addContact('pubkey123', 'Alice')
       useStore.getState().renameContact('pubkey123', 'Alina')
-      expect(useStore.getState().contacts['pubkey123'].name).toBe('Alina')
+      expect(useStore.getState().contacts['pubkey123']?.name).toBe('Alina')
     })
 
     it('should delete a contact and its messages', () => {
@@ -68,7 +68,7 @@ describe('useStore', () => {
     it('should not overwrite existing contact with ensureContact', () => {
       useStore.getState().addContact('pubkey123', 'Alice')
       useStore.getState().ensureContact('pubkey123', 'Unknown')
-      expect(useStore.getState().contacts['pubkey123'].name).toBe('Alice')
+      expect(useStore.getState().contacts['pubkey123']?.name).toBe('Alice')
     })
   })
 
@@ -97,7 +97,7 @@ describe('useStore', () => {
       for (let i = 0; i < 210; i++) {
         useStore.getState().addMessage('dm:abc', { type: 'text', content: 'msg ' + i, pubkey: 'abc', ts: i })
       }
-      expect(useStore.getState().messages['dm:abc'].length).toBeLessThanOrEqual(200)
+      expect(useStore.getState().messages['dm:abc']?.length ?? 0).toBeLessThanOrEqual(200)
     })
   })
 
