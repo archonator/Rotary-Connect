@@ -1,9 +1,22 @@
+/**
+ * Tests für den globalen Zustand-Store (store/useStore.ts).
+ *
+ * Fokus: die Aktionen, die State invariant halten müssen — also
+ * Identitäts-Lifecycle (createIdentity → updateName → logout),
+ * Kontakt-CRUD, Nachrichten-Deduplizierung und das 200-Nachrichten-Cap,
+ * Unread-Counter, Räume und Modal/Sidebar-UI-Flags.
+ *
+ * Vor jedem Test wird sowohl localStorage als auch der Store auf den
+ * Initialzustand zurückgesetzt — sonst würden Tests sich gegenseitig
+ * über persistierte oder im Speicher gehaltene Werte beeinflussen.
+ */
+
 import { describe, it, expect, beforeEach } from 'vitest'
 import { useStore } from '../store/useStore'
 
 beforeEach(() => {
   localStorage.clear()
-  // Reset store to initial state
+  // Store auf bekannten Initialzustand zurücksetzen
   useStore.setState({
     identity: null,
     contacts: {},

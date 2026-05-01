@@ -1,3 +1,21 @@
+/**
+ * Tests für die Persistierungs-Schicht (lib/storage.ts).
+ *
+ * Wir laufen hier OHNE entsperrten Vault — `cachedRead` greift in
+ * dem Modus direkt auf localStorage durch (siehe storage.ts), sodass
+ * die Tests auf den rohen Speicher schauen können, ohne den
+ * Verschlüsselungs-Pfad nachstellen zu müssen.
+ *
+ * Geprüft werden:
+ *   • Roundtrip jedes Werte-Slots (Identity, Contacts, Rooms, …)
+ *   • Default-Verhalten bei fehlenden Werten und korrumpiertem JSON
+ *   • Logs als Ringpuffer (max. 100 Einträge)
+ *   • clearAll() wischt sowohl localStorage als auch den In-Memory-Cache
+ *
+ * Vor jedem Test räumen wir auf: localStorage.clear() reicht hier,
+ * weil ohne Vault-Unlock der Cache nicht eingelesen wird.
+ */
+
 import { describe, it, expect, beforeEach } from 'vitest'
 import {
   loadIdentity,

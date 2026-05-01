@@ -1,3 +1,17 @@
+/**
+ * Tests für die Schwache-PIN-Heuristik in PinLock.
+ *
+ * `isWeakPin` lehnt PINs ab, die:
+ *   • alle dieselbe Ziffer haben (0000, 9999, 111111, …)
+ *   • streng aufsteigend sind (1234, 0123, 123456)
+ *   • streng absteigend sind (4321, 654321)
+ *   • in der "Top-30"-Liste der bekanntesten Codes stehen
+ *     (1212, 2580, 111222, …)
+ *
+ * Akzeptierte PINs sind hingegen "echt" zufällig wirkende
+ * Zifferkombinationen (5060, 7193, 408291, …).
+ */
+
 import { describe, it, expect } from 'vitest'
 import { isWeakPin } from '../components/ui/PinLock'
 

@@ -1,3 +1,19 @@
+/**
+ * Smoke-Tests für die Krypto-Schicht (lib/crypto.ts).
+ *
+ * Wir testen hier nicht die zugrundeliegende secp256k1-/AES-Logik selbst
+ * (das macht nostr-tools intern), sondern die Wrapper auf Anwendungs-
+ * ebene:
+ *   • Schlüsselerzeugung erzeugt unterschiedliche Paare
+ *   • nsec/npub-Roundtrips sind verlustfrei
+ *   • NIP-04 DM zwischen zwei frischen Schlüsselpaaren round-trippt
+ *     (inkl. Unicode + Emoji)
+ *   • Hashes sind deterministisch und unterscheidbar
+ *
+ * Tests für NIP-17 Seal/Gift Wrap und Schlüsselrotation laufen separat
+ * in nip17.test.ts und migration.test.ts.
+ */
+
 import { describe, it, expect } from 'vitest'
 import {
   createKeyPair,

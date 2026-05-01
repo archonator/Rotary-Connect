@@ -1,3 +1,22 @@
+/**
+ * Tests für die NIP-17-Hülle (Sealed Sender + Gift Wrap).
+ *
+ * Diese Tests demonstrieren die drei Eigenschaften, die NIP-17 für
+ * Gruppenräume bietet:
+ *
+ *   1. Roundtrip — der vorgesehene Empfänger bekommt den Klartext
+ *      zurück und sieht den ECHTEN Sender (über seal.pubkey).
+ *   2. Vertraulichkeit — ein anderer Empfänger kann das Gift Wrap
+ *      nicht entpacken und bekommt null.
+ *   3. Metadaten-Schutz — der Zeitstempel des Seals liegt im
+ *      Bereich [now − 48h, now], damit man aus ihm keine Aussage
+ *      über den tatsächlichen Sendezeitpunkt ableiten kann.
+ *
+ * Die ursprünglichen secp256k1- und NIP-44-Operationen werden
+ * vollständig durchlaufen — kein Mocking — sodass die Tests auch als
+ * End-to-End-Smoke-Test der Krypto-Pipeline funktionieren.
+ */
+
 import { describe, it, expect } from 'vitest'
 import {
   createKeyPair,

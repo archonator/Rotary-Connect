@@ -1,3 +1,22 @@
+/**
+ * Tests für die Schlüsselrotations-Verifikation (lib/crypto.ts).
+ *
+ * Schwerpunkt: `verifyMigrationEvent` muss BEIDE Signaturen prüfen.
+ *   • Das äußere Event (alter Schlüssel signiert die Cross-Sig).
+ *   • Die innere Cross-Signature (neuer Schlüssel signiert
+ *     "ich übernehme von <alt>").
+ *
+ * Wir verifizieren positive und drei Angriffsvektoren:
+ *   - Falsches Kind im Outer-Event → null
+ *   - Cross-Sig vom falschen Schlüssel signiert (Forgery-Versuch) → null
+ *   - Cross-Sig zeigt auf einen anderen alten Pubkey (Umetikettierung)
+ *     → null
+ *
+ * Wenn auch nur einer dieser Checks fehlschlägt, würde ein Angreifer
+ * einem Empfänger eine fremde Schlüsselrotation unterschieben können —
+ * daher keine Kompromisse.
+ */
+
 import { describe, it, expect } from 'vitest'
 import {
   createKeyPair,

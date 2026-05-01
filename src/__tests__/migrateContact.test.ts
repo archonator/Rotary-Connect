@@ -1,3 +1,20 @@
+/**
+ * Tests für die Store-Aktion migrateContact.
+ *
+ * Wenn ein Kontakt seinen Schlüssel rotiert, MUSS empfängerseitig
+ * folgendes umgezogen werden:
+ *
+ *   • Kontakt-Eintrag (Name bleibt, Pubkey wechselt)
+ *   • Chat-History (chatId und pubkey-Felder einzelner Nachrichten)
+ *   • Ungelesen-Counter (addiert, falls beide Seiten welche hatten)
+ *   • activeChat (falls genau dieser Chat geöffnet ist)
+ *
+ * Edge-Cases:
+ *   • Migration eines unbekannten Kontakts → No-Op
+ *   • old === new → No-Op (würde sonst Daten löschen)
+ *   • Ziel-chatId hat schon Nachrichten → mergen statt überschreiben
+ */
+
 import { describe, it, expect, beforeEach } from 'vitest'
 import { useStore } from '../store/useStore'
 

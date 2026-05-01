@@ -1,3 +1,22 @@
+/**
+ * Tests für den lokalen Vault (lib/vault.ts).
+ *
+ * Geprüft wird das gesamte Lebenszyklus-Spektrum:
+ *   • Vault-Anlage  (initVault)
+ *   • Lock / Unlock + falscher PIN
+ *   • encrypt/decrypt-Roundtrip mit verschiedenen Eingaben (auch
+ *     Unicode + Emoji), Random-IV (gleicher Plaintext → unterschiedliche
+ *     Ciphertexte), Plaintext-Pass-Through für unverschlüsselte Werte
+ *   • PIN-Wechsel: alter PIN ungültig, alte Ciphertexte bleiben
+ *     entschlüsselbar (nur der DEK wird neu eingewickelt)
+ *   • destroyVault wischt alles weg
+ *   • vaultEncrypt wirft, wenn der Vault zu ist
+ *
+ * `lockVault()` in beforeEach stellt sicher, dass jeder Test im
+ * "frisch gestarteter Browser"-Zustand beginnt, auch wenn ein
+ * voriger Test den DEK in den Speicher geladen hat.
+ */
+
 import { describe, it, expect, beforeEach } from 'vitest'
 import {
   isVaultActive,
