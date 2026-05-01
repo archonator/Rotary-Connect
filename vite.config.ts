@@ -8,6 +8,24 @@ export default defineConfig({
     globals: true,
     setupFiles: [],
   },
+  build: {
+    // Splittet das Bundle in drei Chunks, damit das initiale Render
+    // nicht erst auf den (großen) nostr-tools-Code warten muss:
+    //   • react-vendor — React + Router (ändert sich selten, gut cachebar)
+    //   • nostr        — nostr-tools (~150 KB durch secp256k1)
+    //   • app          — alles andere (unser eigentlicher Code)
+    rollupOptions: {
+      output: {
+        manualChunks: (id) => {
+          if (id.includes('node_modules')) {
+            if (id.includes('nostr-tools') || id.includes('@noble')) return 'nostr'
+            if (id.includes('react') || id.includes('lucide')) return 'react-vendor'
+          }
+          return undefined
+        },
+      },
+    },
+  },
   plugins: [
     react(),
     VitePWA({
