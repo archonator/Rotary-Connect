@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { isVaultActive, initVault, unlockVault } from '../../lib/vault'
 import { loadDecryptedCache, migrateToVault, hasPlaintextData } from '../../lib/storage'
+import { useT } from '../../hooks/useT'
 
 /**
  * PinLock & PinSetup — Vault-Gate-UI.
@@ -119,6 +120,7 @@ export function getVaultGateMode(): 'unlock' | 'setup' | 'none' {
 // ── PinLock (unlock existing vault) ──────────────────────────────
 
 export function PinLock({ onUnlock }: PinLockProps) {
+  const t = useT()
   const [pin, setPin] = useState('')
   const [error, setError] = useState('')
   const [shake, setShake] = useState(false)
@@ -177,10 +179,10 @@ export function PinLock({ onUnlock }: PinLockProps) {
           setAttempts(newCount, lockedUntil)
           setLocked(true)
           setLockRemaining(Math.ceil(lockoutMs / 1000))
-          setError(`Wrong PIN. Locked for ${formatLockout(lockoutMs)}.`)
+          setError(t('pin.wrongLocked', { duration: formatLockout(lockoutMs) }))
         } else {
           setAttempts(newCount, 0)
-          setError('Wrong PIN.')
+          setError(t('pin.wrongShort'))
         }
 
         setShake(true)
@@ -209,7 +211,7 @@ export function PinLock({ onUnlock }: PinLockProps) {
         Rotary Connect
       </div>
       <div style={{ fontSize: '0.85rem', color: 'var(--muted)' }}>
-        Enter your PIN to unlock
+        {t('pin.unlockTitle')}
       </div>
       <input
         ref={inputRef}
@@ -222,7 +224,7 @@ export function PinLock({ onUnlock }: PinLockProps) {
         placeholder="••••"
         disabled={locked || loading}
         autoFocus
-        aria-label="PIN"
+        aria-label={t('pin.aria')}
         style={{
           width: 160, textAlign: 'center', fontSize: '2rem', letterSpacing: '0.5em',
           background: locked ? 'var(--surface)' : 'var(--surface2)',
@@ -238,12 +240,12 @@ export function PinLock({ onUnlock }: PinLockProps) {
       )}
       {locked && lockRemaining > 0 && (
         <div style={{ fontSize: '0.78rem', color: 'var(--muted)' }}>
-          Try again in {lockRemaining}s
+          {t('pin.tryAgainIn', { n: String(lockRemaining) })}
         </div>
       )}
       {loading && (
         <div style={{ fontSize: '0.78rem', color: 'var(--muted)' }}>
-          Unlocking...
+          {t('pin.unlocking')}
         </div>
       )}
       <button
@@ -258,7 +260,7 @@ export function PinLock({ onUnlock }: PinLockProps) {
           transition: 'all 0.2s',
         }}
       >
-        Unlock
+        {t('pin.unlock')}
       </button>
     </div>
   )
@@ -267,6 +269,7 @@ export function PinLock({ onUnlock }: PinLockProps) {
 // ── PinSetup (create new vault or migrate) ───────────────────────
 
 export function PinSetup({ onComplete, isMigration }: PinSetupProps) {
+  const t = useT()
   const [pin, setPin] = useState('')
   const [confirmPin, setConfirmPin] = useState('')
   const [step, setStep] = useState<'enter' | 'confirm'>('enter')
@@ -281,7 +284,7 @@ export function PinSetup({ onComplete, isMigration }: PinSetupProps) {
   const handleEnter = () => {
     if (pin.length < 4) return
     if (isWeakPin(pin)) {
-      setError('That PIN is too easy to guess. Try something less predictable.')
+      setError(t('pin.tooEasy'))
       return
     }
     setStep('confirm')
@@ -290,20 +293,19 @@ export function PinSetup({ onComplete, isMigration }: PinSetupProps) {
 
   const handleConfirm = async () => {
     if (confirmPin !== pin) {
-      setError('PINs do not match')
+      setError(t('pin.dontMatch'))
       setConfirmPin('')
       return
     }
 
     setLoading(true)
     try {
-      // Create vault with PIN
+      // Vault mit PIN anlegen
       await initVault(pin)
 
       if (isMigration) {
-        // Encrypt existing plaintext data
+        // Bestehende Klartext-Daten verschlüsseln
         await migrateToVault()
-        // Load decrypted cache (data is now in cache from migration)
         await loadDecryptedCache()
       }
 
@@ -311,14 +313,14 @@ export function PinSetup({ onComplete, isMigration }: PinSetupProps) {
       setConfirmPin('')
       setAttempts(0, 0)
 
-      // Clean up old PIN system keys
+      // Alte PIN-System-Keys aufräumen (vor-Vault-Versionen)
       localStorage.removeItem('alina-pin-hash')
       localStorage.removeItem('alina-pin-salt')
       localStorage.removeItem('alina-pin-attempts')
 
       onComplete()
     } catch (e) {
-      setError('Failed to create vault: ' + String(e))
+      setError(t('pin.failedSetup', { err: String(e) }))
     } finally {
       setLoading(false)
     }
@@ -344,18 +346,12 @@ export function PinSetup({ onComplete, isMigration }: PinSetupProps) {
         Rotary Connect
       </div>
 
-      {isMigration ? (
-        <div style={{ fontSize: '0.85rem', color: 'var(--muted)', textAlign: 'center', maxWidth: 300, lineHeight: 1.6 }}>
-          Your data is not yet encrypted. Set a PIN to protect your keys and messages.
-        </div>
-      ) : (
-        <div style={{ fontSize: '0.85rem', color: 'var(--muted)', textAlign: 'center', maxWidth: 300, lineHeight: 1.6 }}>
-          Choose a PIN to encrypt your data. You'll need this PIN every time you open Rotary Connect.
-        </div>
-      )}
+      <div style={{ fontSize: '0.85rem', color: 'var(--muted)', textAlign: 'center', maxWidth: 300, lineHeight: 1.6 }}>
+        {isMigration ? t('pin.setupHintMigration') : t('pin.setupHintFresh')}
+      </div>
 
       <div style={{ fontSize: '0.75rem', color: 'var(--accent)', fontWeight: 500 }}>
-        {step === 'enter' ? 'Choose a PIN (4-6 digits)' : 'Confirm your PIN'}
+        {step === 'enter' ? t('pin.setupChooseTitle') : t('pin.setupConfirmTitle')}
       </div>
 
       <input
@@ -374,7 +370,7 @@ export function PinSetup({ onComplete, isMigration }: PinSetupProps) {
         placeholder="••••"
         disabled={loading}
         autoFocus
-        aria-label={step === 'enter' ? 'Choose PIN' : 'Confirm PIN'}
+        aria-label={step === 'enter' ? t('pin.ariaChoose') : t('pin.ariaConfirm')}
         style={{
           width: 160, textAlign: 'center', fontSize: '2rem', letterSpacing: '0.5em',
           background: 'var(--surface2)',
@@ -391,7 +387,7 @@ export function PinSetup({ onComplete, isMigration }: PinSetupProps) {
 
       {loading && (
         <div style={{ fontSize: '0.78rem', color: 'var(--muted)' }}>
-          Encrypting your data...
+          {t('pin.encrypting')}
         </div>
       )}
 
@@ -407,7 +403,7 @@ export function PinSetup({ onComplete, isMigration }: PinSetupProps) {
               cursor: loading ? 'default' : 'pointer', transition: 'all 0.2s',
             }}
           >
-            Back
+            {t('pin.setupBack')}
           </button>
         )}
         <button
@@ -425,7 +421,7 @@ export function PinSetup({ onComplete, isMigration }: PinSetupProps) {
             transition: 'all 0.2s',
           }}
         >
-          {step === 'enter' ? 'Continue' : 'Encrypt'}
+          {step === 'enter' ? t('pin.setupContinue') : t('pin.setupEncrypt')}
         </button>
       </div>
 
@@ -434,7 +430,7 @@ export function PinSetup({ onComplete, isMigration }: PinSetupProps) {
         border: '1px solid rgba(201,112,112,0.2)', borderRadius: 8,
         padding: '0.6rem 0.8rem', maxWidth: 320, lineHeight: 1.5, textAlign: 'center',
       }}>
-        If you forget your PIN, your data cannot be recovered. Make sure to back up your private key (nsec) in Settings.
+        {t('pin.setupBackupWarning')}
       </div>
     </div>
   )

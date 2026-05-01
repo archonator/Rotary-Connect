@@ -87,11 +87,11 @@ export function SettingsModal() {
 
   const handlePinChange = async () => {
     if (newPin.length < 4) {
-      setPinError('PIN must be at least 4 digits')
+      setPinError(t('settings.pinTooShort'))
       return
     }
     if (newPin !== confirmNewPin) {
-      setPinError('New PINs do not match')
+      setPinError(t('settings.pinDontMatch'))
       setConfirmNewPin('')
       return
     }
@@ -100,17 +100,17 @@ export function SettingsModal() {
     try {
       const success = await changeVaultPin(oldPin, newPin)
       if (success) {
-        showStatus('PIN changed', 2000)
+        showStatus(t('settings.pinChanged'), 2000)
         setShowPinChange(false)
         setOldPin('')
         setNewPin('')
         setConfirmNewPin('')
       } else {
-        setPinError('Wrong current PIN')
+        setPinError(t('settings.pinWrongCurrent'))
         setOldPin('')
       }
     } catch {
-      setPinError('Failed to change PIN')
+      setPinError(t('settings.pinChangeFailed'))
     } finally {
       setPinLoading(false)
     }
@@ -154,13 +154,13 @@ export function SettingsModal() {
 
         <div className="warning-box">{t('settings.keyWarning')}</div>
 
-        {/* Key Rotation */}
+        {/* Schlüsselrotation */}
         <button
           className="btn secondary small"
           style={{ fontSize: '0.78rem' }}
           onClick={() => setOpenModal('key-migration')}
         >
-          Rotate Key
+          {t('settings.rotateKey')}
         </button>
 
         <label style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer' }}>
@@ -202,10 +202,10 @@ export function SettingsModal() {
           </div>
         )}
 
-        {/* WebRTC Mode Toggle */}
+        {/* WebRTC-Modus-Umschalter */}
         <div>
           <div style={{ fontSize: '0.82rem', fontWeight: 500, color: 'var(--text)', marginBottom: '0.4rem' }}>
-            WebRTC Mode
+            {t('settings.webrtcMode')}
           </div>
           <div style={{ display: 'flex', gap: '0.4rem' }}>
             <button
@@ -216,7 +216,7 @@ export function SettingsModal() {
                 setWebRTCMode('standard')
               }}
             >
-              ⚡ Standard (STUN)
+              {t('settings.webrtcStandard')}
             </button>
             <button
               className={`btn small ${webrtcMode === 'private' ? '' : 'secondary'}`}
@@ -227,13 +227,11 @@ export function SettingsModal() {
                 if (!turnUrl) setShowTurnConfig(true)
               }}
             >
-              🛡 Private (TURN)
+              {t('settings.webrtcPrivate')}
             </button>
           </div>
           <div style={{ fontSize: '0.72rem', color: 'var(--muted)', marginTop: '0.35rem', lineHeight: 1.5 }}>
-            {webrtcMode === 'standard'
-              ? 'Direct P2P — fast, but peers can see each other\'s IP address.'
-              : 'Relay via TURN server — hides your IP, requires a TURN server.'}
+            {webrtcMode === 'standard' ? t('settings.webrtcStandardDesc') : t('settings.webrtcPrivateDesc')}
           </div>
 
           {webrtcMode === 'private' && !turnUrl && !showTurnConfig && (
@@ -242,7 +240,7 @@ export function SettingsModal() {
               border: '1px solid rgba(201,112,112,0.2)', borderRadius: 6,
               padding: '0.5rem 0.65rem', lineHeight: 1.5, marginTop: '0.35rem',
             }}>
-              ⚠ No TURN server configured. Private mode won't work without one.
+              {t('settings.webrtcNoTurn')}
             </div>
           )}
 
@@ -250,21 +248,21 @@ export function SettingsModal() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', marginTop: '0.5rem' }}>
               <input
                 type="text"
-                placeholder="TURN URL (e.g. turn:relay.example.com:3478)"
+                placeholder={t('settings.turnUrl')}
                 value={turnUrl}
                 onChange={e => setTurnUrl(e.target.value)}
                 style={{ fontSize: '0.8rem', fontFamily: 'monospace' }}
               />
               <input
                 type="text"
-                placeholder="Username"
+                placeholder={t('settings.turnUser')}
                 value={turnUser}
                 onChange={e => setTurnUser(e.target.value)}
                 style={{ fontSize: '0.8rem' }}
               />
               <input
                 type="password"
-                placeholder="Credential"
+                placeholder={t('settings.turnPass')}
                 value={turnPass}
                 onChange={e => setTurnPass(e.target.value)}
                 style={{ fontSize: '0.8rem' }}
@@ -275,12 +273,12 @@ export function SettingsModal() {
                   style={{ fontSize: '0.78rem' }}
                   onClick={() => {
                     setTurnConfig({ url: turnUrl.trim(), username: turnUser.trim(), credential: turnPass })
-                    showStatus('TURN config saved', 2000)
+                    showStatus(t('settings.turnSaved'), 2000)
                     setShowTurnConfig(false)
                   }}
                   disabled={!turnUrl.trim()}
                 >
-                  Save TURN
+                  {t('settings.turnSave')}
                 </button>
                 {turnUrl && (
                   <button
@@ -293,11 +291,11 @@ export function SettingsModal() {
                       setTurnConfig({ url: '', username: '', credential: '' })
                       setWebrtcModeLocal('standard')
                       setWebRTCMode('standard')
-                      showStatus('TURN config removed', 2000)
+                      showStatus(t('settings.turnRemoved'), 2000)
                       setShowTurnConfig(false)
                     }}
                   >
-                    Remove
+                    {t('settings.turnRemove')}
                   </button>
                 )}
               </div>
@@ -310,18 +308,18 @@ export function SettingsModal() {
               style={{ fontSize: '0.72rem', marginTop: '0.35rem' }}
               onClick={() => setShowTurnConfig(true)}
             >
-              Edit TURN config
+              {t('settings.turnEdit')}
             </button>
           )}
         </div>
 
-        {/* Vault PIN Management */}
+        {/* Vault-PIN-Verwaltung */}
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
             <div>
-              <div style={{ fontSize: '0.82rem', fontWeight: 500, color: 'var(--text)' }}>Encryption PIN</div>
+              <div style={{ fontSize: '0.82rem', fontWeight: 500, color: 'var(--text)' }}>{t('settings.encryptionPin')}</div>
               <div style={{ fontSize: '0.75rem', color: 'var(--muted)', marginTop: '0.15rem' }}>
-                Your data is encrypted with AES-256-GCM
+                {t('settings.encryptionPinSub')}
               </div>
             </div>
           </div>
@@ -331,7 +329,7 @@ export function SettingsModal() {
               style={{ marginTop: '0.5rem', fontSize: '0.78rem' }}
               onClick={() => setShowPinChange(true)}
             >
-              Change PIN
+              {t('settings.changePin')}
             </button>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', marginTop: '0.5rem' }}>
@@ -339,7 +337,7 @@ export function SettingsModal() {
                 type="password"
                 inputMode="numeric"
                 maxLength={6}
-                placeholder="Current PIN"
+                placeholder={t('settings.currentPin')}
                 value={oldPin}
                 onChange={e => { setOldPin(e.target.value.replace(/\D/g, '')); setPinError('') }}
                 style={{ fontSize: '0.85rem', letterSpacing: '0.2em', textAlign: 'center', fontFamily: 'monospace' }}
@@ -349,7 +347,7 @@ export function SettingsModal() {
                 type="password"
                 inputMode="numeric"
                 maxLength={6}
-                placeholder="New PIN (4-6 digits)"
+                placeholder={t('settings.newPin')}
                 value={newPin}
                 onChange={e => { setNewPin(e.target.value.replace(/\D/g, '')); setPinError('') }}
                 style={{ fontSize: '0.85rem', letterSpacing: '0.2em', textAlign: 'center', fontFamily: 'monospace' }}
@@ -358,7 +356,7 @@ export function SettingsModal() {
                 type="password"
                 inputMode="numeric"
                 maxLength={6}
-                placeholder="Confirm new PIN"
+                placeholder={t('settings.confirmNewPin')}
                 value={confirmNewPin}
                 onChange={e => { setConfirmNewPin(e.target.value.replace(/\D/g, '')); setPinError('') }}
                 onKeyDown={e => e.key === 'Enter' && handlePinChange()}
@@ -373,7 +371,7 @@ export function SettingsModal() {
                   onClick={handlePinChange}
                   disabled={oldPin.length < 4 || newPin.length < 4 || confirmNewPin.length < 4 || pinLoading}
                 >
-                  {pinLoading ? 'Changing...' : 'Save'}
+                  {pinLoading ? t('settings.changing') : t('settings.save')}
                 </button>
                 <button
                   className="btn secondary small"
@@ -385,7 +383,7 @@ export function SettingsModal() {
                     setPinError('')
                   }}
                 >
-                  Cancel
+                  {t('settings.cancel')}
                 </button>
               </div>
             </div>
